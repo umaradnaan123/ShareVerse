@@ -5,7 +5,7 @@
   "private": true,
   "scripts": {
     "dev": "tsx src/api/index.ts",
-    "build": "vite build && tsc -p tsconfig.server.json",
+    "build": "vite build && tsc -p tsconfig.server.json && node scripts/generate-sitemaps.js",
     "start": "NODE_ENV=production node dist/api/index.js"
   },
   "dependencies": {
