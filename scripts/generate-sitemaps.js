@@ -5,9 +5,7 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const VERCEL_URL = process.env.VERCEL_URL 
-  ? `https://${process.env.VERCEL_URL}` 
-  : 'https://shareverse.app';
+const VERCEL_URL = 'https://share-verse-nu.vercel.app';
 
 const distPath = path.join(__dirname, '../dist');
 
