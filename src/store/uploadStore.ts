@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 
-
 export interface UploadTask {
   id: string;
   name: string;
@@ -13,6 +12,7 @@ export interface UploadTask {
   file: File;
   parentFolderId?: string | null;
   cancelController?: AbortController;
+  error?: string;
 }
 
 interface UploadState {
@@ -22,6 +22,7 @@ interface UploadState {
   pauseUpload: (taskId: string) => void;
   resumeUpload: (taskId: string) => void;
   cancelUpload: (taskId: string) => void;
+  retryUpload: (taskId: string) => void;
   clearCompleted: () => void;
 }
 
@@ -57,10 +58,9 @@ export const useUploadStore = create<UploadState>((set, get) => ({
 
     set((state) => ({
       tasks: state.tasks.map((t) =>
-        t.id === taskId ? { ...t, status: 'uploading', cancelController: new AbortController() } : t
+        t.id === taskId ? { ...t, status: 'uploading', cancelController: new AbortController(), error: undefined } : t
       )
     }));
-
 
     const currentTask = get().tasks.find((t) => t.id === taskId)!;
     const { file, parentFolderId, uploadedBytes } = currentTask;
@@ -99,7 +99,8 @@ export const useUploadStore = create<UploadState>((set, get) => ({
         });
 
         if (!response.ok) {
-          throw new Error('Failed to upload chunk');
+          const errData = await response.json().catch(() => ({}));
+          throw new Error(errData.error || `Server error: ${response.status}`);
         }
 
         const resData = await response.json();
@@ -134,8 +135,27 @@ export const useUploadStore = create<UploadState>((set, get) => ({
         if (err.name === 'AbortError') {
           break;
         }
+        
+        console.error(`Upload error for task ${taskId}:`, err);
+        let errorMsg = 'Upload Failed';
+        const msg = err.message || '';
+        
+        if (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('network')) {
+          errorMsg = 'Network Error';
+        } else if (msg.includes('503') || msg.includes('502') || msg.includes('504')) {
+          errorMsg = 'Server Unavailable';
+        } else if (msg.includes('413') || msg.includes('payload too large') || msg.includes('Too Large')) {
+          errorMsg = 'File Too Large';
+        } else if (msg.includes('403') || msg.includes('permission')) {
+          errorMsg = 'Storage Error';
+        } else if (msg.includes('timeout')) {
+          errorMsg = 'Upload Timeout';
+        } else {
+          errorMsg = msg || 'Upload Failed';
+        }
+
         set((state) => ({
-          tasks: state.tasks.map((t) => (t.id === taskId ? { ...t, status: 'failed', speed: 0, eta: 0 } : t))
+          tasks: state.tasks.map((t) => (t.id === taskId ? { ...t, status: 'failed', speed: 0, eta: 0, error: errorMsg } : t))
         }));
         break;
       }
@@ -170,6 +190,16 @@ export const useUploadStore = create<UploadState>((set, get) => ({
     set((state) => ({
       tasks: state.tasks.filter((t) => t.id !== taskId)
     }));
+  },
+
+  retryUpload: (taskId) => {
+    const task = get().tasks.find((t) => t.id === taskId);
+    if (!task || task.status !== 'failed') return;
+
+    set((state) => ({
+      tasks: state.tasks.map((t) => (t.id === taskId ? { ...t, status: 'uploading', error: undefined } : t))
+    }));
+    get().startUpload(taskId);
   },
 
   clearCompleted: () => {

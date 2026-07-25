@@ -3,7 +3,7 @@ import { useUploadStore } from '../store/uploadStore';
 import { Play, Pause, X, ChevronUp, ChevronDown, CheckCircle, AlertCircle, RefreshCw } from 'lucide-react';
 
 export default function UploadHUD() {
-  const { tasks, pauseUpload, resumeUpload, cancelUpload, clearCompleted } = useUploadStore();
+  const { tasks, pauseUpload, resumeUpload, cancelUpload, clearCompleted, retryUpload } = useUploadStore();
   const [collapsed, setCollapsed] = useState(false);
 
   if (tasks.length === 0) return null;
@@ -105,8 +105,8 @@ export default function UploadHUD() {
                     </span>
                   )}
                   {task.status === 'failed' && (
-                    <span className="text-red-500 flex items-center gap-1">
-                      <AlertCircle className="h-3 w-3" /> Failed
+                    <span className="text-red-500 flex items-center gap-1" title={task.error}>
+                      <AlertCircle className="h-3 w-3" /> {task.error || 'Failed'}
                     </span>
                   )}
                   {task.status === 'paused' && <span className="text-yellow-500">Paused</span>}
@@ -127,6 +127,15 @@ export default function UploadHUD() {
                       className="p-1 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded transition-colors text-brand-500"
                     >
                       <Play className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                  {task.status === 'failed' && (
+                    <button
+                      onClick={() => retryUpload(task.id)}
+                      className="p-1 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded transition-colors text-brand-500"
+                      title="Retry Upload"
+                    >
+                      <RefreshCw className="h-3 w-3" />
                     </button>
                   )}
                   {task.status !== 'completed' && (
