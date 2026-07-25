@@ -131,6 +131,12 @@ router.get('/:id/download', async (req: Request, res: Response) => {
     res.setHeader('Content-Length', file.size);
 
     const readStream = fs.createReadStream(filePath);
+    readStream.on('error', (err) => {
+      console.error('Download read stream error:', err);
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'Failed to read file from storage server.' });
+      }
+    });
     readStream.pipe(res);
   } catch (err: any) {
     res.status(500).json({ error: err.message });

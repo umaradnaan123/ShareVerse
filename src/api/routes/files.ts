@@ -109,6 +109,14 @@ router.post('/upload/chunk', upload.single('chunk'), async (req: Request, res: R
 
     const filesInFolder = fs.readdirSync(fileFolder);
     if (filesInFolder.length === total) {
+      // Validate all chunks exist
+      for (let i = 0; i < total; i++) {
+        const partPath = path.join(fileFolder, `chunk-${i}`);
+        if (!fs.existsSync(partPath)) {
+          return res.status(400).json({ error: `Upload validation failed: chunk ${i} is missing. Please retry.` });
+        }
+      }
+
       const finalFileName = `${generateUUID()}-${fileName}`;
       const finalFilePath = path.join(UPLOADS_DIR, finalFileName);
       
