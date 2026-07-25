@@ -11,12 +11,17 @@ const __dirname = path.dirname(__filename);
 let db: Database<sqlite3.Database, sqlite3.Statement>;
 
 export async function initDb() {
-  const dbDir = path.join(__dirname, '../../database');
-  if (!fs.existsSync(dbDir)) {
-    fs.mkdirSync(dbDir, { recursive: true });
-  }
+  const isServerless = process.env.VERCEL === '1' || process.env.NODE_ENV === 'production';
+  const dbPath = isServerless 
+    ? '/tmp/shareverse.db' 
+    : path.join(__dirname, '../../database/shareverse.db');
 
-  const dbPath = path.join(dbDir, 'shareverse.db');
+  if (!isServerless) {
+    const dbDir = path.dirname(dbPath);
+    if (!fs.existsSync(dbDir)) {
+      fs.mkdirSync(dbDir, { recursive: true });
+    }
+  }
   
   db = await open({
     filename: dbPath,
