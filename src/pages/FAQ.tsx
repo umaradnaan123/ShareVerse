@@ -40,7 +40,18 @@ export default function FAQ() {
   ];
 
   useEffect(() => {
-    document.title = 'ShareVerse - Help Center & FAQ';
+    document.title = 'ShareVerse Help Center & FAQ - Free File Sharing Support';
+
+    // Inject canonical link
+    const canonicalId = 'canonical-faq';
+    let link = document.getElementById(canonicalId) as HTMLLinkElement;
+    if (!link) {
+      link = document.createElement('link');
+      link.id = canonicalId;
+      link.rel = 'canonical';
+      document.head.appendChild(link);
+    }
+    link.href = `${window.location.origin}/faq`;
 
     const scriptId = 'jsonld-faq';
     let script = document.getElementById(scriptId) as HTMLScriptElement;
@@ -68,6 +79,7 @@ export default function FAQ() {
 
     return () => {
       document.getElementById(scriptId)?.remove();
+      document.getElementById(canonicalId)?.remove();
     };
   }, []);
 
@@ -102,6 +114,7 @@ export default function FAQ() {
         <div className="space-y-4">
           {filteredFaqs.map((faq, idx) => {
             const isOpen = openIndex === idx;
+            const contentId = `faq-content-${idx}`;
             return (
               <div
                 key={idx}
@@ -109,6 +122,8 @@ export default function FAQ() {
               >
                 <button
                   onClick={() => setOpenIndex(isOpen ? null : idx)}
+                  aria-expanded={isOpen}
+                  aria-controls={contentId}
                   className="w-full flex justify-between items-center px-6 py-4 text-left font-semibold text-neutral-800 dark:text-neutral-200"
                 >
                   <span>{faq.q}</span>
@@ -116,7 +131,11 @@ export default function FAQ() {
                 </button>
                 
                 {isOpen && (
-                  <div className="px-6 pb-6 pt-1 text-sm text-neutral-500 dark:text-neutral-400 leading-relaxed border-t border-neutral-100 dark:border-neutral-900">
+                  <div
+                    id={contentId}
+                    role="region"
+                    className="px-6 pb-6 pt-1 text-sm text-neutral-500 dark:text-neutral-400 leading-relaxed border-t border-neutral-100 dark:border-neutral-900"
+                  >
                     <p className="mb-2">{faq.a}</p>
                     <span className="inline-block text-xs px-2.5 py-0.5 bg-brand-500/10 text-brand-500 rounded-full font-medium">
                       Category: {faq.category}

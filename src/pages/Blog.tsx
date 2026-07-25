@@ -68,27 +68,90 @@ Dedicated file-sharing platforms (like ShareVerse) focus on **distribution, life
   ];
 
   useEffect(() => {
+    // Dynamic page title
     if (selectedArticle) {
       document.title = `${selectedArticle.title} - ShareVerse Blog`;
     } else {
-      document.title = 'ShareVerse Blog - Guides & Industry Best Practices';
+      document.title = 'ShareVerse Blog - Free File Sharing Guides & Insights';
     }
+
+    // Dynamic canonical link
+    const canonicalId = 'canonical-blog';
+    let link = document.getElementById(canonicalId) as HTMLLinkElement;
+    if (!link) {
+      link = document.createElement('link');
+      link.id = canonicalId;
+      link.rel = 'canonical';
+      document.head.appendChild(link);
+    }
+    const slugQuery = selectedArticle ? `?article=${selectedArticle.slug}` : '';
+    link.href = `${window.location.origin}/blog${slugQuery}`;
+
+    // Schema injection
+    const scriptId = 'schema-blog';
+    let script = document.getElementById(scriptId) as HTMLScriptElement;
+    if (!script) {
+      script = document.createElement('script');
+      script.id = scriptId;
+      script.type = 'application/ld+json';
+      document.head.appendChild(script);
+    }
+
+    if (selectedArticle) {
+      script.textContent = JSON.stringify({
+        '@context': 'https://schema.org',
+        '@type': 'BlogPosting',
+        'headline': selectedArticle.title,
+        'description': selectedArticle.excerpt,
+        'author': {
+          '@type': 'Organization',
+          'name': 'ShareVerse'
+        },
+        'publisher': {
+          '@type': 'Organization',
+          'name': 'ShareVerse',
+          'logo': {
+            '@type': 'ImageObject',
+            'url': `${window.location.origin}/vite.svg`
+          }
+        },
+        'datePublished': new Date(selectedArticle.date).toISOString(),
+        'mainEntityOfPage': link.href
+      });
+    } else {
+      script.textContent = JSON.stringify({
+        '@context': 'https://schema.org',
+        '@type': 'Blog',
+        'name': 'ShareVerse Blog',
+        'description': 'Expert guides and cybersecurity articles for online file assets sharing.',
+        'publisher': {
+          '@type': 'Organization',
+          'name': 'ShareVerse'
+        }
+      });
+    }
+
+    return () => {
+      document.getElementById(canonicalId)?.remove();
+      document.getElementById(scriptId)?.remove();
+    };
   }, [selectedArticle]);
 
   if (selectedArticle) {
     return (
-      <div className="bg-neutral-50 dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 flex-1 min-h-[calc(100vh-16rem)] py-16">
+      <div className="bg-neutral-50 dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 flex-1 min-h-[calc(100vh-16rem)] py-16 animate-fade-in">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
           <button
             onClick={() => setSelectedArticle(null)}
             className="flex items-center gap-2 text-sm font-medium text-brand-500 hover:text-brand-600 mb-8"
+            aria-label="Return to Blog List"
           >
             <ArrowLeft className="h-4 w-4" />
             <span>Back to articles</span>
           </button>
 
-          <article className="bg-white dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-3xl p-8 shadow-sm">
-            <h1 className="text-3xl sm:text-4xl font-extrabold mb-6 leading-tight">
+          <article className="bg-white dark:bg-neutral-955 border border-neutral-200 dark:border-neutral-800 rounded-3xl p-8 shadow-sm">
+            <h1 className="text-3xl sm:text-4xl font-extrabold mb-6 leading-tight text-neutral-900 dark:text-white">
               {selectedArticle.title}
             </h1>
             
@@ -109,9 +172,9 @@ Dedicated file-sharing platforms (like ShareVerse) focus on **distribution, life
               {selectedArticle.content.trim().split('\n\n').map((para, i) => {
                 if (para.startsWith('###')) {
                   return (
-                    <h3 key={i} className="text-xl font-bold text-neutral-800 dark:text-neutral-100 mt-6 mb-2">
+                    <h2 key={i} className="text-xl font-bold text-neutral-800 dark:text-neutral-100 mt-6 mb-2">
                       {para.replace('###', '').trim()}
-                    </h3>
+                    </h2>
                   );
                 }
                 if (para.startsWith('1.') || para.startsWith('-')) {
@@ -133,7 +196,7 @@ Dedicated file-sharing platforms (like ShareVerse) focus on **distribution, life
   }
 
   return (
-    <div className="bg-neutral-50 dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 flex-1 min-h-[calc(100vh-16rem)] py-16">
+    <div className="bg-neutral-50 dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 flex-1 min-h-[calc(100vh-16rem)] py-16 animate-fade-in">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center max-w-3xl mx-auto mb-16">
           <h1 className="text-4xl font-extrabold tracking-tight mb-4 flex items-center justify-center gap-2">
@@ -150,7 +213,7 @@ Dedicated file-sharing platforms (like ShareVerse) focus on **distribution, life
             <div
               key={idx}
               onClick={() => setSelectedArticle(art)}
-              className="group cursor-pointer p-6 rounded-3xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 shadow-sm hover:shadow-md hover:border-brand-500/50 transition-all flex flex-col justify-between"
+              className="group cursor-pointer p-6 rounded-3xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-955 shadow-sm hover:shadow-md hover:border-brand-500/50 transition-all flex flex-col justify-between"
             >
               <div>
                 <div className="flex items-center gap-2 text-xs text-neutral-500 dark:text-neutral-400 mb-4">
@@ -159,9 +222,9 @@ Dedicated file-sharing platforms (like ShareVerse) focus on **distribution, life
                   <span>•</span>
                   <span>{art.readTime}</span>
                 </div>
-                <h3 className="text-xl font-bold mb-3 group-hover:text-brand-500 transition-colors">
+                <h2 className="text-xl font-bold mb-3 group-hover:text-brand-500 transition-colors">
                   {art.title}
-                </h3>
+                </h2>
                 <p className="text-sm text-neutral-500 dark:text-neutral-400 leading-relaxed mb-6">
                   {art.excerpt}
                 </p>

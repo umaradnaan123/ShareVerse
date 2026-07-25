@@ -3,7 +3,46 @@ import { Shield, Cpu, RefreshCcw, Eye, QrCode, Share } from 'lucide-react';
 
 export default function Features() {
   useEffect(() => {
-    document.title = 'ShareVerse - Product Features & Capabilities';
+    document.title = 'ShareVerse Features - Chunked Uploads & Custom Shared Links';
+    
+    // Inject canonical link
+    const canonicalId = 'canonical-features';
+    let link = document.getElementById(canonicalId) as HTMLLinkElement;
+    if (!link) {
+      link = document.createElement('link');
+      link.id = canonicalId;
+      link.rel = 'canonical';
+      document.head.appendChild(link);
+    }
+    link.href = `${window.location.origin}/features`;
+
+    // Inject JSON-LD Schema
+    const scriptId = 'schema-features';
+    let script = document.getElementById(scriptId) as HTMLScriptElement;
+    if (!script) {
+      script = document.createElement('script');
+      script.id = scriptId;
+      script.type = 'application/ld+json';
+      document.head.appendChild(script);
+    }
+    script.textContent = JSON.stringify({
+      '@context': 'https://schema.org',
+      '@type': 'SoftwareApplication',
+      'name': 'ShareVerse',
+      'operatingSystem': 'All',
+      'applicationCategory': 'FileSharingApplication',
+      'offers': {
+        '@type': 'Offer',
+        'price': '0',
+        'priceCurrency': 'USD'
+      },
+      'featureList': 'Chunked Upload Engine, Automatic Retry, Secure Access controls, Rich Previews, QR Code Generation, Web Share API integration'
+    });
+
+    return () => {
+      document.getElementById(canonicalId)?.remove();
+      document.getElementById(scriptId)?.remove();
+    };
   }, []);
 
   const features = [
@@ -51,11 +90,11 @@ export default function Features() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {features.map((f, i) => (
-            <div key={i} className="p-8 rounded-3xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 shadow-sm hover:shadow-md transition-shadow">
+            <div key={i} className="p-8 rounded-3xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-955 shadow-sm hover:shadow-md transition-shadow">
               <div className="p-3 bg-brand-500/10 dark:bg-brand-500/20 text-brand-500 rounded-2xl w-fit mb-6">
                 {f.icon}
               </div>
-              <h3 className="text-xl font-bold mb-2">{f.title}</h3>
+              <h2 className="text-xl font-bold mb-2">{f.title}</h2>
               <p className="text-sm text-neutral-500 dark:text-neutral-400 leading-relaxed">
                 {f.desc}
               </p>

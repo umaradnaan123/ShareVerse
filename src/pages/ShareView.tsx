@@ -53,6 +53,26 @@ export default function ShareView() {
   }, [id]);
 
   useEffect(() => {
+    if (file) {
+      document.title = `${file.name} - ShareVerse File Viewer`;
+      
+      const robotsId = 'meta-robots-share';
+      let robots = document.getElementById(robotsId) as HTMLMetaElement;
+      if (!robots) {
+        robots = document.createElement('meta');
+        robots.id = robotsId;
+        robots.name = 'robots';
+        document.head.appendChild(robots);
+      }
+      robots.content = 'noindex, nofollow';
+
+      return () => {
+        robots.remove();
+      };
+    }
+  }, [file]);
+
+  useEffect(() => {
     if (!file || !isPasswordVerified) return;
 
     const mime = file.mime_type.toLowerCase();
