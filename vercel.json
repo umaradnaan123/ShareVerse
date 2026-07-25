@@ -8,27 +8,10 @@
       "destination": "/api"
     },
     {
-      "source": "/robots.txt",
-      "destination": "/robots.txt"
+      "handle": "filesystem"
     },
     {
-      "source": "/sitemap.xml",
-      "destination": "/sitemap.xml"
-    },
-    {
-      "source": "/sitemap-pages.xml",
-      "destination": "/sitemap-pages.xml"
-    },
-    {
-      "source": "/sitemap-blog.xml",
-      "destination": "/sitemap-blog.xml"
-    },
-    {
-      "source": "/sitemap-images.xml",
-      "destination": "/sitemap-images.xml"
-    },
-    {
-      "source": "/((?!api|assets|vite.svg).*)",
+      "source": "/(.*)",
       "destination": "/index.html"
     }
   ]
