@@ -100,20 +100,6 @@ export async function initDb() {
     )
   `);
 
-  // Seed default admin user
-  const adminEmail = 'admin@shareverse.app';
-  const existingAdmin = await db.get('SELECT * FROM users WHERE email = ?', adminEmail);
-  if (!existingAdmin) {
-    const adminId = 'admin-user-uuid-1111';
-    const passwordHash = await bcrypt.hash('AdminPass123!', 10);
-    const now = new Date().toISOString();
-    await db.run(
-      'INSERT INTO users (id, email, password_hash, role, is_verified, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-      [adminId, adminEmail, passwordHash, 'admin', 1, now]
-    );
-    console.log('Seeded Admin account successfully');
-  }
-
   console.log('SQLite Database Initialized.');
   return db;
 }
