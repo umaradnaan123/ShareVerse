@@ -1,11 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { useAuthStore } from '../store/authStore';
-import { HardDrive, LogOut, Sun, Moon, Shield, Menu, X } from 'lucide-react';
+import { Link, useLocation } from 'react-router-dom';
+import { HardDrive, Sun, Moon, Menu, X } from 'lucide-react';
 
 export default function Navbar() {
-  const { user, isAuthenticated, logout } = useAuthStore();
-  const navigate = useNavigate();
   const location = useLocation();
   const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark');
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -24,17 +21,12 @@ export default function Navbar() {
     setTheme(prev => prev === 'dark' ? 'light' : 'dark');
   };
 
-  const handleLogout = () => {
-    logout();
-    navigate('/');
-  };
-
   const isLinkActive = (path: string) => location.pathname === path;
 
   const navLinks = [
     { name: 'Home', path: '/' },
+    { name: 'Upload', path: '/dashboard' },
     { name: 'Features', path: '/features' },
-    { name: 'Pricing', path: '/pricing' },
     { name: 'Security', path: '/security' },
     { name: 'FAQ', path: '/faq' },
     { name: 'Blog', path: '/blog' },
@@ -76,47 +68,12 @@ export default function Navbar() {
               {theme === 'dark' ? <Sun className="h-5 w-5 text-yellow-500" /> : <Moon className="h-5 w-5 text-neutral-600" />}
             </button>
 
-            {isAuthenticated ? (
-              <div className="flex items-center space-x-3">
-                <Link
-                  to="/dashboard"
-                  className="px-4 py-2 text-sm font-medium text-white bg-brand-500 rounded-lg hover:bg-brand-600 transition-colors shadow-md shadow-brand-500/20"
-                >
-                  Go to Dashboard
-                </Link>
-                {user?.role === 'admin' && (
-                  <Link
-                    to="/admin"
-                    className="p-2 rounded-lg text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
-                    title="Admin Panel"
-                  >
-                    <Shield className="h-5 w-5 text-brand-500" />
-                  </Link>
-                )}
-                <button
-                  onClick={handleLogout}
-                  className="p-2 rounded-lg text-red-500 hover:bg-red-500/10 transition-colors"
-                  title="Logout"
-                >
-                  <LogOut className="h-5 w-5" />
-                </button>
-              </div>
-            ) : (
-              <div className="flex items-center space-x-3">
-                <Link
-                  to="/login"
-                  className="text-sm font-medium text-neutral-700 dark:text-neutral-200 hover:text-brand-500 dark:hover:text-brand-500 transition-colors"
-                >
-                  Sign In
-                </Link>
-                <Link
-                  to="/register"
-                  className="px-4 py-2 text-sm font-medium text-white bg-brand-500 rounded-lg hover:bg-brand-600 transition-colors shadow-md shadow-brand-500/20"
-                >
-                  Get Started
-                </Link>
-              </div>
-            )}
+            <Link
+              to="/dashboard"
+              className="px-4 py-2 text-sm font-medium text-white bg-brand-500 rounded-lg hover:bg-brand-600 transition-colors shadow-md shadow-brand-500/20"
+            >
+              Share Files
+            </Link>
           </div>
 
           <div className="flex items-center space-x-2 md:hidden">
@@ -153,49 +110,13 @@ export default function Navbar() {
             </Link>
           ))}
           <div className="pt-4 border-t border-neutral-200 dark:border-neutral-800">
-            {isAuthenticated ? (
-              <div className="space-y-2">
-                <Link
-                  to="/dashboard"
-                  onClick={() => setMobileOpen(false)}
-                  className="block w-full text-center px-4 py-2 text-base font-medium text-white bg-brand-500 rounded-lg hover:bg-brand-600"
-                >
-                  Dashboard
-                </Link>
-                {user?.role === 'admin' && (
-                  <Link
-                    to="/admin"
-                    onClick={() => setMobileOpen(false)}
-                    className="block w-full text-center px-4 py-2 text-base font-medium text-brand-500 bg-brand-500/10 rounded-lg hover:bg-brand-500/20"
-                  >
-                    Admin Panel
-                  </Link>
-                )}
-                <button
-                  onClick={() => { setMobileOpen(false); handleLogout(); }}
-                  className="block w-full text-center px-4 py-2 text-base font-medium text-red-500 bg-red-500/10 rounded-lg hover:bg-red-500/20"
-                >
-                  Logout
-                </button>
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-2">
-                <Link
-                  to="/login"
-                  onClick={() => setMobileOpen(false)}
-                  className="block text-center px-4 py-2 text-base font-medium text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-lg"
-                >
-                  Sign In
-                </Link>
-                <Link
-                  to="/register"
-                  onClick={() => setMobileOpen(false)}
-                  className="block text-center px-4 py-2 text-base font-medium text-white bg-brand-500 rounded-lg hover:bg-brand-600"
-                >
-                  Get Started
-                </Link>
-              </div>
-            )}
+            <Link
+              to="/dashboard"
+              onClick={() => setMobileOpen(false)}
+              className="block w-full text-center px-4 py-2 text-base font-medium text-white bg-brand-500 rounded-lg hover:bg-brand-600"
+            >
+              Share Files
+            </Link>
           </div>
         </div>
       )}

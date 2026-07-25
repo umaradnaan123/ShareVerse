@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { useAuthStore } from './authStore';
+
 
 export interface UploadTask {
   id: string;
@@ -61,7 +61,7 @@ export const useUploadStore = create<UploadState>((set, get) => ({
       )
     }));
 
-    const token = useAuthStore.getState().token;
+
     const currentTask = get().tasks.find((t) => t.id === taskId)!;
     const { file, parentFolderId, uploadedBytes } = currentTask;
     const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
@@ -94,9 +94,6 @@ export const useUploadStore = create<UploadState>((set, get) => ({
       try {
         const response = await fetch('/api/files/upload/chunk', {
           method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`
-          },
           body: formData,
           signal: activeTask.cancelController?.signal
         });

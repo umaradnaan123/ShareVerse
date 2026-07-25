@@ -25,30 +25,16 @@ export async function initDb() {
 
   await db.run('PRAGMA foreign_keys = ON');
 
-  // Create Users
-  await db.exec(`
-    CREATE TABLE IF NOT EXISTS users (
-      id TEXT PRIMARY KEY,
-      email TEXT UNIQUE NOT NULL,
-      password_hash TEXT NOT NULL,
-      role TEXT NOT NULL DEFAULT 'user',
-      is_verified INTEGER NOT NULL DEFAULT 0,
-      created_at TEXT NOT NULL
-    )
-  `);
-
   // Create Folders
   await db.exec(`
     CREATE TABLE IF NOT EXISTS folders (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
       parent_folder_id TEXT,
-      owner_id TEXT NOT NULL,
       is_starred INTEGER NOT NULL DEFAULT 0,
       is_trashed INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL,
-      FOREIGN KEY (parent_folder_id) REFERENCES folders(id) ON DELETE CASCADE,
-      FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE
+      FOREIGN KEY (parent_folder_id) REFERENCES folders(id) ON DELETE CASCADE
     )
   `);
 
@@ -61,7 +47,6 @@ export async function initDb() {
       mime_type TEXT NOT NULL,
       path TEXT NOT NULL,
       parent_folder_id TEXT,
-      owner_id TEXT NOT NULL,
       is_public INTEGER NOT NULL DEFAULT 1,
       password_hash TEXT,
       expires_at TEXT,
@@ -70,8 +55,7 @@ export async function initDb() {
       is_starred INTEGER NOT NULL DEFAULT 0,
       is_trashed INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL,
-      FOREIGN KEY (parent_folder_id) REFERENCES folders(id) ON DELETE SET NULL,
-      FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE
+      FOREIGN KEY (parent_folder_id) REFERENCES folders(id) ON DELETE SET NULL
     )
   `);
 
@@ -85,18 +69,6 @@ export async function initDb() {
       user_agent TEXT,
       country TEXT,
       FOREIGN KEY (file_id) REFERENCES files(id) ON DELETE CASCADE
-    )
-  `);
-
-  // Create Activity Logs
-  await db.exec(`
-    CREATE TABLE IF NOT EXISTS activity_logs (
-      id TEXT PRIMARY KEY,
-      user_id TEXT,
-      action TEXT NOT NULL,
-      details TEXT NOT NULL,
-      created_at TEXT NOT NULL,
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
     )
   `);
 

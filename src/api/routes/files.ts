@@ -5,7 +5,6 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { getDb } from '../db.js';
 import { generateShortId, generateUUID } from '../utils/security.js';
-import { authenticateToken } from '../middleware/auth.js';
 import bcrypt from 'bcryptjs';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -43,8 +42,7 @@ function cleanTempFolderAsync(dirPath: string) {
   }, 1000);
 }
 
-router.get('/', authenticateToken, async (req: Request, res: Response) => {
-  const userId = req.user!.userId;
+router.get('/', async (req: Request, res: Response) => {
   const parentId = req.query.parentId || null;
   const isTrashed = req.query.trashed === 'true' ? 1 : 0;
   const isStarred = req.query.starred === 'true' ? 1 : null;
@@ -52,8 +50,8 @@ router.get('/', authenticateToken, async (req: Request, res: Response) => {
 
   try {
     const db = getDb();
-    let query = 'SELECT * FROM files WHERE owner_id = ? AND is_trashed = ?';
-    const params: any[] = [userId, isTrashed];
+    let query = 'SELECT * FROM files WHERE is_trashed = ?';
+    const params: any[] = [isTrashed];
 
     if (isStarred !== null) {
       query += ' AND is_starred = ?';
@@ -78,8 +76,7 @@ router.get('/', authenticateToken, async (req: Request, res: Response) => {
   }
 });
 
-router.post('/upload/chunk', authenticateToken, upload.single('chunk'), async (req: Request, res: Response) => {
-  const userId = req.user!.userId;
+router.post('/upload/chunk', upload.single('chunk'), async (req: Request, res: Response) => {
   const {
     fileId,
     chunkIndex,
@@ -127,8 +124,8 @@ router.post('/upload/chunk', authenticateToken, upload.single('chunk'), async (r
       const now = new Date().toISOString();
 
       await db.run(
-        `INSERT INTO files (id, name, size, mime_type, path, parent_folder_id, owner_id, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO files (id, name, size, mime_type, path, parent_folder_id, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
         [
           newFileId,
           fileName,
@@ -136,7 +133,6 @@ router.post('/upload/chunk', authenticateToken, upload.single('chunk'), async (r
           mimeType || 'application/octet-stream',
           finalFileName,
           parentFolderId === 'root' || !parentFolderId ? null : parentFolderId,
-          userId,
           now
         ]
       );
@@ -152,8 +148,7 @@ router.post('/upload/chunk', authenticateToken, upload.single('chunk'), async (r
   }
 });
 
-router.put('/:id', authenticateToken, async (req: Request, res: Response) => {
-  const userId = req.user!.userId;
+router.put('/:id', async (req: Request, res: Response) => {
   const { id } = req.params;
   const {
     name,
@@ -168,7 +163,7 @@ router.put('/:id', authenticateToken, async (req: Request, res: Response) => {
 
   try {
     const db = getDb();
-    const file = await db.get('SELECT * FROM files WHERE id = ? AND owner_id = ?', [id, userId]);
+    const file = await db.get('SELECT * FROM files WHERE id = ?', id);
     if (!file) {
       return res.status(404).json({ error: 'File not found' });
     }
@@ -214,8 +209,8 @@ router.put('/:id', authenticateToken, async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'No fields to update' });
     }
 
-    query += updates.join(',') + ' WHERE id = ? AND owner_id = ?';
-    params.push(id, userId);
+    query += updates.join(',') + ' WHERE id = ?';
+    params.push(id);
 
     await db.run(query, params);
     const updatedFile = await db.get('SELECT * FROM files WHERE id = ?', id);
@@ -225,19 +220,18 @@ router.put('/:id', authenticateToken, async (req: Request, res: Response) => {
   }
 });
 
-router.post('/bulk-trash', authenticateToken, async (req: Request, res: Response) => {
-  const userId = req.user!.userId;
+router.post('/bulk-trash', async (req: Request, res: Response) => {
   const { fileIds, folderIds } = req.body;
 
   try {
     const db = getDb();
     if (fileIds && fileIds.length > 0) {
       const placeholders = fileIds.map(() => '?').join(',');
-      await db.run(`UPDATE files SET is_trashed = 1 WHERE id IN (${placeholders}) AND owner_id = ?`, [...fileIds, userId]);
+      await db.run(`UPDATE files SET is_trashed = 1 WHERE id IN (${placeholders})`, [...fileIds]);
     }
     if (folderIds && folderIds.length > 0) {
       const placeholders = folderIds.map(() => '?').join(',');
-      await db.run(`UPDATE folders SET is_trashed = 1 WHERE id IN (${placeholders}) AND owner_id = ?`, [...folderIds, userId]);
+      await db.run(`UPDATE folders SET is_trashed = 1 WHERE id IN (${placeholders})`, [...folderIds]);
       for (const folderId of folderIds) {
         await db.run('UPDATE files SET is_trashed = 1 WHERE parent_folder_id = ?', folderId);
       }
@@ -248,19 +242,18 @@ router.post('/bulk-trash', authenticateToken, async (req: Request, res: Response
   }
 });
 
-router.post('/bulk-restore', authenticateToken, async (req: Request, res: Response) => {
-  const userId = req.user!.userId;
+router.post('/bulk-restore', async (req: Request, res: Response) => {
   const { fileIds, folderIds } = req.body;
 
   try {
     const db = getDb();
     if (fileIds && fileIds.length > 0) {
       const placeholders = fileIds.map(() => '?').join(',');
-      await db.run(`UPDATE files SET is_trashed = 0 WHERE id IN (${placeholders}) AND owner_id = ?`, [...fileIds, userId]);
+      await db.run(`UPDATE files SET is_trashed = 0 WHERE id IN (${placeholders})`, [...fileIds]);
     }
     if (folderIds && folderIds.length > 0) {
       const placeholders = folderIds.map(() => '?').join(',');
-      await db.run(`UPDATE folders SET is_trashed = 0 WHERE id IN (${placeholders}) AND owner_id = ?`, [...folderIds, userId]);
+      await db.run(`UPDATE folders SET is_trashed = 0 WHERE id IN (${placeholders})`, [...folderIds]);
       for (const folderId of folderIds) {
         await db.run('UPDATE files SET is_trashed = 0 WHERE parent_folder_id = ?', folderId);
       }
@@ -271,25 +264,24 @@ router.post('/bulk-restore', authenticateToken, async (req: Request, res: Respon
   }
 });
 
-router.post('/bulk-delete', authenticateToken, async (req: Request, res: Response) => {
-  const userId = req.user!.userId;
+router.post('/bulk-delete', async (req: Request, res: Response) => {
   const { fileIds, folderIds } = req.body;
 
   try {
     const db = getDb();
     if (fileIds && fileIds.length > 0) {
       const placeholders = fileIds.map(() => '?').join(',');
-      const files = await db.all(`SELECT path FROM files WHERE id IN (${placeholders}) AND owner_id = ?`, [...fileIds, userId]);
+      const files = await db.all(`SELECT path FROM files WHERE id IN (${placeholders})`, [...fileIds]);
       for (const f of files) {
         const fp = path.join(UPLOADS_DIR, f.path);
         if (fs.existsSync(fp)) fs.unlinkSync(fp);
       }
-      await db.run(`DELETE FROM files WHERE id IN (${placeholders}) AND owner_id = ?`, [...fileIds, userId]);
+      await db.run(`DELETE FROM files WHERE id IN (${placeholders})`, [...fileIds]);
     }
     
     if (folderIds && folderIds.length > 0) {
       for (const folderId of folderIds) {
-        const files = await db.all('SELECT path FROM files WHERE parent_folder_id = ? AND owner_id = ?', [folderId, userId]);
+        const files = await db.all('SELECT path FROM files WHERE parent_folder_id = ?', [folderId]);
         for (const f of files) {
           const fp = path.join(UPLOADS_DIR, f.path);
           if (fs.existsSync(fp)) fs.unlinkSync(fp);
@@ -297,7 +289,7 @@ router.post('/bulk-delete', authenticateToken, async (req: Request, res: Respons
         await db.run('DELETE FROM files WHERE parent_folder_id = ?', folderId);
       }
       const placeholders = folderIds.map(() => '?').join(',');
-      await db.run(`DELETE FROM folders WHERE id IN (${placeholders}) AND owner_id = ?`, [...folderIds, userId]);
+      await db.run(`DELETE FROM folders WHERE id IN (${placeholders})`, [...folderIds]);
     }
     res.json({ message: 'Items deleted permanently' });
   } catch (err: any) {
@@ -305,13 +297,12 @@ router.post('/bulk-delete', authenticateToken, async (req: Request, res: Respons
   }
 });
 
-router.delete('/:id', authenticateToken, async (req: Request, res: Response) => {
-  const userId = req.user!.userId;
+router.delete('/:id', async (req: Request, res: Response) => {
   const { id } = req.params;
 
   try {
     const db = getDb();
-    const file = await db.get('SELECT * FROM files WHERE id = ? AND owner_id = ?', [id, userId]);
+    const file = await db.get('SELECT * FROM files WHERE id = ?', id);
     if (!file) {
       return res.status(404).json({ error: 'File not found' });
     }

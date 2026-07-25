@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
 import { X, Copy, Share2, Shield, Calendar, Download, Eye, EyeOff, Check } from 'lucide-react';
-import { useAuthStore } from '../store/authStore';
 
 interface ShareModalProps {
   file: {
@@ -15,7 +14,6 @@ interface ShareModalProps {
 }
 
 export default function ShareModal({ file, onClose }: ShareModalProps) {
-  const token = useAuthStore((state) => state.token);
   const shareUrl = `${window.location.origin}/share/${file.id}`;
   const [copied, setCopied] = useState(false);
   const [qrCodeData, setQrCodeData] = useState<string>('');
@@ -66,8 +64,7 @@ export default function ShareModal({ file, onClose }: ShareModalProps) {
       const response = await fetch(`/api/files/${file.id}`, {
         method: 'PUT',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           isPublic: isPublic ? 1 : 0,

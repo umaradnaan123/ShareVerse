@@ -4,7 +4,7 @@ import { HardDrive } from 'lucide-react';
 
 export default function Footer() {
   return (
-    <footer className="bg-neutral-50 dark:bg-neutral-950 border-t border-neutral-200/50 dark:border-neutral-800/50">
+    <footer className="bg-neutral-50 dark:bg-neutral-955 border-t border-neutral-200/50 dark:border-neutral-800/50">
       <div className="max-w-7xl mx-auto px-4 py-12 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           <div className="space-y-4">
@@ -13,7 +13,7 @@ export default function Footer() {
               <span>Share<span className="text-brand-500">Verse</span></span>
             </div>
             <p className="text-sm text-neutral-500 dark:text-neutral-400">
-              Secure, fast, and modern chunked file and folder sharing platform with link customization, passwords, and analytics.
+              Secure, fast, and completely free chunked file and folder sharing platform with link customization, passwords, and analytics.
             </p>
           </div>
 
@@ -23,11 +23,6 @@ export default function Footer() {
               <li>
                 <Link to="/features" className="text-sm text-neutral-500 dark:text-neutral-400 hover:text-brand-500 dark:hover:text-brand-500">
                   Features
-                </Link>
-              </li>
-              <li>
-                <Link to="/pricing" className="text-sm text-neutral-500 dark:text-neutral-400 hover:text-brand-500 dark:hover:text-brand-500">
-                  Pricing
                 </Link>
               </li>
               <li>
@@ -73,7 +68,7 @@ export default function Footer() {
         
         <div className="mt-8 pt-8 border-t border-neutral-200 dark:border-neutral-800 text-center">
           <p className="text-sm text-neutral-400 dark:text-neutral-500">
-            &copy; {new Date().getFullYear()} ShareVerse, Inc. All rights reserved.
+            &copy; {new Date().getFullYear()} ShareVerse, Inc. All files hosted are 100% Free Forever.
           </p>
         </div>
       </div>

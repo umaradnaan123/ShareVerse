@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { useAuthStore } from '../store/authStore';
 import UploadZone from '../components/UploadZone';
 import ShareModal from '../components/ShareModal';
 import {
@@ -46,7 +45,6 @@ interface FolderItem {
 }
 
 export default function Dashboard() {
-  const token = useAuthStore((state) => state.token);
   const [files, setFiles] = useState<FileItem[]>([]);
   const [folders, setFolders] = useState<FolderItem[]>([]);
   const [currentFolderId, setCurrentFolderId] = useState<string | null>('root');
@@ -84,10 +82,9 @@ export default function Dashboard() {
         foldersUrl += parentQuery;
       }
 
-      const headers = { 'Authorization': `Bearer ${token}` };
       const [filesRes, foldersRes] = await Promise.all([
-        fetch(filesUrl, { headers }),
-        fetch(foldersUrl, { headers })
+        fetch(filesUrl),
+        fetch(foldersUrl)
       ]);
 
       if (filesRes.ok && foldersRes.ok) {
@@ -105,7 +102,7 @@ export default function Dashboard() {
     fetchContents();
     setSelectedFileIds([]);
     setSelectedFolderIds([]);
-  }, [currentFolderId, currentTab, token]);
+  }, [currentFolderId, currentTab]);
 
   useEffect(() => {
     const handleUploaded = () => fetchContents();
@@ -136,8 +133,7 @@ export default function Dashboard() {
       const response = await fetch('/api/folders', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           name: newFolderName,
@@ -160,8 +156,7 @@ export default function Dashboard() {
       const res = await fetch(`/api/files/${fileId}`, {
         method: 'PUT',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify(updates)
       });
@@ -176,8 +171,7 @@ export default function Dashboard() {
       const res = await fetch(`/api/folders/${folderId}`, {
         method: 'PUT',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify(updates)
       });
@@ -200,8 +194,7 @@ export default function Dashboard() {
       await fetch('/api/files/bulk-trash', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({ fileIds: selectedFileIds, folderIds: selectedFolderIds })
       });
@@ -218,8 +211,7 @@ export default function Dashboard() {
       await fetch('/api/files/bulk-restore', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({ fileIds: selectedFileIds, folderIds: selectedFolderIds })
       });
@@ -237,8 +229,7 @@ export default function Dashboard() {
       await fetch('/api/files/bulk-delete', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({ fileIds: selectedFileIds, folderIds: selectedFolderIds })
       });

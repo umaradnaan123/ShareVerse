@@ -5,11 +5,9 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 import { initDb } from './db.js';
-import authRouter from './routes/auth.js';
 import foldersRouter from './routes/folders.js';
 import filesRouter from './routes/files.js';
 import sharesRouter from './routes/shares.js';
-import adminRouter from './routes/admin.js';
 import { rateLimiter } from './middleware/rateLimit.js';
 
 dotenv.config();
@@ -48,11 +46,9 @@ app.use((req, res, next) => {
 });
 
 // Setup api routers
-app.use('/api/auth', authRouter);
 app.use('/api/folders', foldersRouter);
 app.use('/api/files', filesRouter);
 app.use('/api/shares', sharesRouter);
-app.use('/api/admin', adminRouter);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
