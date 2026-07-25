@@ -1,0 +1,121 @@
+import express from 'express';
+import cors from 'cors';
+import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import fs from 'fs';
+import { initDb } from './db.js';
+import authRouter from './routes/auth.js';
+import foldersRouter from './routes/folders.js';
+import filesRouter from './routes/files.js';
+import sharesRouter from './routes/shares.js';
+import adminRouter from './routes/admin.js';
+import { rateLimiter } from './middleware/rateLimit.js';
+
+dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const app = express();
+const PORT = process.env.PORT || 3001;
+
+// Attach security response headers
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  next();
+});
+
+// Enable CORS with support for frontend dev server
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
+app.use(express.json());
+
+// Apply rate limiting to API routes
+app.use('/api', rateLimiter);
+
+// Log incoming requests
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  next();
+});
+
+// Setup api routers
+app.use('/api/auth', authRouter);
+app.use('/api/folders', foldersRouter);
+app.use('/api/files', filesRouter);
+app.use('/api/shares', sharesRouter);
+app.use('/api/admin', adminRouter);
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.json({ status: 'OK', timestamp: new Date().toISOString() });
+});
+
+const isProd = process.env.NODE_ENV === 'production';
+const rootDir = path.join(__dirname, '../..');
+
+if (isProd) {
+  // Serve production compiled files from dist/ folder
+  const distPath = path.join(rootDir, 'dist');
+  app.use(express.static(distPath));
+
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(distPath, 'index.html'));
+  });
+}
+
+// Start server
+async function startServer() {
+  const bootStart = Date.now();
+  try {
+    const initTasks: Promise<any>[] = [initDb()];
+
+    if (!isProd) {
+      console.log('Loading Vite dev server middleware concurrently...');
+      const vitePromise = import('vite').then(async ({ createServer }) => {
+        console.log('Creating Vite dev server...');
+        const vite = await createServer({
+          server: { middlewareMode: true },
+          appType: 'custom',
+          root: rootDir
+        });
+        console.log('Vite dev server created. Registering dev middlewares...');
+        app.use(vite.middlewares);
+
+        app.use('*', async (req, res, next) => {
+          const url = req.originalUrl;
+          try {
+            let template = fs.readFileSync(path.join(rootDir, 'index.html'), 'utf-8');
+            template = await vite.transformIndexHtml(url, template);
+            res.status(200).set({ 'Content-Type': 'text/html' }).end(template);
+          } catch (e: any) {
+            vite.ssrFixStacktrace(e);
+            next(e);
+          }
+        });
+        console.log('Vite middleware successfully registered!');
+      });
+      initTasks.push(vitePromise);
+    }
+
+    await Promise.all(initTasks);
+
+    app.listen(PORT, () => {
+      console.log(`Integrated ShareVerse booted in ${Date.now() - bootStart}ms and listening on port ${PORT}`);
+    });
+  } catch (error) {
+    console.error('Failed to start server:', error);
+    process.exit(1);
+  }
+}
+
+startServer();
+export default app;

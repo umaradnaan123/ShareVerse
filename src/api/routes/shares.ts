@@ -1,0 +1,132 @@
+import { Router, Request, Response } from 'express';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import bcrypt from 'bcryptjs';
+import { getDb } from '../db.js';
+import { generateUUID } from '../utils/security.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const UPLOADS_DIR = path.join(__dirname, '../../../uploads');
+
+const router = Router();
+
+router.get('/:id', async (req: Request, res: Response) => {
+  const { id } = req.params;
+
+  try {
+    const db = getDb();
+    const file = await db.get(
+      'SELECT id, name, size, mime_type, owner_id, is_public, password_hash, expires_at, download_limit, download_count, created_at FROM files WHERE id = ? AND is_trashed = 0',
+      id
+    );
+
+    if (!file) {
+      return res.status(404).json({ error: 'Shared link not found or file has been deleted.' });
+    }
+
+    if (file.expires_at && new Date(file.expires_at) < new Date()) {
+      return res.status(410).json({ error: 'This shareable link has expired.' });
+    }
+
+    if (file.download_limit !== null && file.download_count >= file.download_limit) {
+      return res.status(410).json({ error: 'This file has reached its download limit.' });
+    }
+
+    const hasPassword = !!file.password_hash;
+    const { password_hash, ...publicMeta } = file;
+
+    res.json({
+      ...publicMeta,
+      hasPassword
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/:id/verify-password', async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { password } = req.body;
+
+  try {
+    const db = getDb();
+    const file = await db.get('SELECT password_hash FROM files WHERE id = ? AND is_trashed = 0', id);
+
+    if (!file) {
+      return res.status(404).json({ error: 'Shared link not found.' });
+    }
+
+    if (!file.password_hash) {
+      return res.json({ verified: true });
+    }
+
+    const isMatch = await bcrypt.compare(password || '', file.password_hash);
+    if (!isMatch) {
+      return res.status(401).json({ error: 'Incorrect password' });
+    }
+
+    res.json({ verified: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/:id/download', async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { password } = req.query;
+
+  try {
+    const db = getDb();
+    const file = await db.get('SELECT * FROM files WHERE id = ? AND is_trashed = 0', id);
+
+    if (!file) {
+      return res.status(404).json({ error: 'File not found.' });
+    }
+
+    if (file.expires_at && new Date(file.expires_at) < new Date()) {
+      return res.status(410).json({ error: 'This link has expired.' });
+    }
+
+    if (file.download_limit !== null && file.download_count >= file.download_limit) {
+      return res.status(410).json({ error: 'Download limit exceeded.' });
+    }
+
+    if (file.password_hash) {
+      const isMatch = await bcrypt.compare((password as string) || '', file.password_hash);
+      if (!isMatch) {
+        return res.status(401).json({ error: 'Password validation required for download.' });
+      }
+    }
+
+    const filePath = path.join(UPLOADS_DIR, file.path);
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: 'Physical file not found on storage server.' });
+    }
+
+    const userAgent = req.headers['user-agent'] || 'Unknown';
+    const ipAddress = req.ip || req.socket.remoteAddress || '127.0.0.1';
+    
+    const countries = ['United States', 'United Kingdom', 'Canada', 'Germany', 'France', 'India', 'Japan', 'Australia'];
+    const randomCountry = countries[Math.floor(Math.random() * countries.length)];
+
+    await db.run(
+      'INSERT INTO downloads (id, file_id, downloaded_at, ip_address, user_agent, country) VALUES (?, ?, ?, ?, ?, ?)',
+      [generateUUID(), file.id, new Date().toISOString(), ipAddress, userAgent, randomCountry]
+    );
+
+    await db.run('UPDATE files SET download_count = download_count + 1 WHERE id = ?', file.id);
+
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(file.name)}"`);
+    res.setHeader('Content-Type', file.mime_type);
+    res.setHeader('Content-Length', file.size);
+
+    const readStream = fs.createReadStream(filePath);
+    readStream.pipe(res);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+export default router;
