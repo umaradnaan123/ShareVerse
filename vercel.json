@@ -5,30 +5,30 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "/api/index.ts"
+      "destination": "/api"
     },
     {
       "source": "/robots.txt",
-      "destination": "/api/index.ts"
+      "destination": "/robots.txt"
     },
     {
       "source": "/sitemap.xml",
-      "destination": "/api/index.ts"
+      "destination": "/sitemap.xml"
     },
     {
       "source": "/sitemap-pages.xml",
-      "destination": "/api/index.ts"
+      "destination": "/sitemap-pages.xml"
     },
     {
       "source": "/sitemap-blog.xml",
-      "destination": "/api/index.ts"
+      "destination": "/sitemap-blog.xml"
     },
     {
       "source": "/sitemap-images.xml",
-      "destination": "/api/index.ts"
+      "destination": "/sitemap-images.xml"
     },
     {
-      "source": "/((?!api|assets|vite.svg|robots\\.txt|sitemap.*\\.xml).*)",
+      "source": "/((?!api|assets|vite.svg).*)",
       "destination": "/index.html"
     }
   ]
