@@ -8,7 +8,15 @@ import { generateUUID } from '../utils/security.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const UPLOADS_DIR = path.join(__dirname, '../../../uploads');
+
+const isServerless = process.env.VERCEL === '1' || process.env.NODE_ENV === 'production';
+const UPLOADS_DIR = isServerless 
+  ? '/tmp/uploads' 
+  : path.join(__dirname, '../../../uploads');
+
+if (!fs.existsSync(UPLOADS_DIR)) {
+  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+}
 
 const router = Router();
 
@@ -18,7 +26,7 @@ router.get('/:id', async (req: Request, res: Response) => {
   try {
     const db = getDb();
     const file = await db.get(
-      'SELECT id, name, size, mime_type, owner_id, is_public, password_hash, expires_at, download_limit, download_count, created_at FROM files WHERE id = ? AND is_trashed = 0',
+      'SELECT id, name, size, mime_type, is_public, password_hash, expires_at, download_limit, download_count, created_at FROM files WHERE id = ? AND is_trashed = 0',
       id
     );
 

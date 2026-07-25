@@ -12,8 +12,11 @@ const __dirname = path.dirname(__filename);
 
 const router = Router();
 
-const UPLOADS_DIR = path.join(__dirname, '../../../uploads');
-const TEMP_DIR = path.join(UPLOADS_DIR, 'temp');
+const isServerless = process.env.VERCEL === '1' || process.env.NODE_ENV === 'production';
+const UPLOADS_DIR = isServerless 
+  ? '/tmp/uploads' 
+  : path.join(__dirname, '../../../uploads');
+const TEMP_DIR = path.join(isServerless ? '/tmp/uploads_temp' : UPLOADS_DIR, 'temp');
 
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 if (!fs.existsSync(TEMP_DIR)) fs.mkdirSync(TEMP_DIR, { recursive: true });
