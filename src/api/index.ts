@@ -69,12 +69,31 @@ Allow: /security
 Allow: /blog
 Disallow: /dashboard
 Disallow: /share/
+Disallow: /api/
 
 Sitemap: ${req.protocol}://${req.get('host')}/sitemap.xml`);
 });
 
-// Serve sitemap.xml
+// Serve sitemap index
 app.get('/sitemap.xml', (req, res) => {
+  res.type('application/xml');
+  const host = `${req.protocol}://${req.get('host')}`;
+  res.send(`<?xml version="1.0" encoding="UTF-8"?>
+<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <sitemap>
+    <loc>${host}/sitemap-pages.xml</loc>
+  </sitemap>
+  <sitemap>
+    <loc>${host}/sitemap-blog.xml</loc>
+  </sitemap>
+  <sitemap>
+    <loc>${host}/sitemap-images.xml</loc>
+  </sitemap>
+</sitemapindex>`);
+});
+
+// Serve sitemap pages
+app.get('/sitemap-pages.xml', (req, res) => {
   res.type('application/xml');
   const host = `${req.protocol}://${req.get('host')}`;
   res.send(`<?xml version="1.0" encoding="UTF-8"?>
@@ -100,14 +119,39 @@ app.get('/sitemap.xml', (req, res) => {
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>${host}/dashboard</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+</urlset>`);
+});
+
+// Serve sitemap blog
+app.get('/sitemap-blog.xml', (req, res) => {
+  res.type('application/xml');
+  const host = `${req.protocol}://${req.get('host')}`;
+  res.send(`<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
     <loc>${host}/blog</loc>
     <changefreq>daily</changefreq>
     <priority>0.7</priority>
   </url>
+</urlset>`);
+});
+
+// Serve sitemap images
+app.get('/sitemap-images.xml', (req, res) => {
+  res.type('application/xml');
+  const host = `${req.protocol}://${req.get('host')}`;
+  res.send(`<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
   <url>
-    <loc>${host}/dashboard</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.5</priority>
+    <loc>${host}/</loc>
+    <image:image>
+      <image:loc>${host}/vite.svg</image:loc>
+      <image:title>ShareVerse Logo</image:title>
+    </image:image>
   </url>
 </urlset>`);
 });

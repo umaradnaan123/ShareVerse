@@ -8,7 +8,27 @@
       "destination": "/api/index.ts"
     },
     {
-      "source": "/((?!api|assets|vite.svg).*)",
+      "source": "/robots.txt",
+      "destination": "/api/index.ts"
+    },
+    {
+      "source": "/sitemap.xml",
+      "destination": "/api/index.ts"
+    },
+    {
+      "source": "/sitemap-pages.xml",
+      "destination": "/api/index.ts"
+    },
+    {
+      "source": "/sitemap-blog.xml",
+      "destination": "/api/index.ts"
+    },
+    {
+      "source": "/sitemap-images.xml",
+      "destination": "/api/index.ts"
+    },
+    {
+      "source": "/((?!api|assets|vite.svg|robots\\.txt|sitemap.*\\.xml).*)",
       "destination": "/index.html"
     }
   ]
