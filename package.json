@@ -9,7 +9,6 @@
     "start": "NODE_ENV=production node dist/api/index.js"
   },
   "dependencies": {
-    "@rolldown/binding-win32-x64-msvc": "^1.2.0",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
