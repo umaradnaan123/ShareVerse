@@ -15,7 +15,8 @@ import {
   Maximize2,
   Minimize2,
   AlertTriangle,
-  EyeOff
+  EyeOff,
+  FileText
 } from 'lucide-react';
 
 interface FileDetails {
@@ -43,12 +44,13 @@ export default function ShareView() {
   const [csvData, setCsvData] = useState<string[][]>([]);
   const [loadingPreview, setLoadingPreview] = useState(false);
 
-  // Preview interactive features state
+  // Preview interactive features & retry fallback state
   const [zoomLevel, setZoomLevel] = useState(1);
   const [rotationAngle, setRotationAngle] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [previewFailed, setPreviewFailed] = useState(false);
   const [assetLoading, setAssetLoading] = useState(true);
+  const [blobObjectUrl, setBlobObjectUrl] = useState<string | null>(null);
 
   const fetchDetails = async () => {
     setLoading(true);
@@ -98,11 +100,11 @@ export default function ShareView() {
   useEffect(() => {
     if (!file || !isPasswordVerified) return;
 
-    // Reset interactive preview features for new file access
     setPreviewFailed(false);
     setAssetLoading(true);
     setZoomLevel(1);
     setRotationAngle(0);
+    setBlobObjectUrl(null);
 
     const mime = file.mime_type.toLowerCase();
     const isText = mime.startsWith('text/') || mime.includes('json') || mime.includes('javascript') || mime.includes('xml') || file.name.endsWith('.md') || file.name.endsWith('.ts') || file.name.endsWith('.yaml') || file.name.endsWith('.yml');
@@ -115,12 +117,14 @@ export default function ShareView() {
     }
   }, [file, isPasswordVerified]);
 
+  const downloadUrl = file ? `/api/shares/${file.id}/download${password ? `?password=${encodeURIComponent(password)}` : ''}` : '';
+  const previewUrl = downloadUrl ? `${downloadUrl}${downloadUrl.includes('?') ? '&' : '?'}inline=true` : '';
+
   const loadPreviewText = async (isCsv: boolean) => {
     setLoadingPreview(true);
     setPreviewFailed(false);
     try {
-      const pwdQuery = password ? `?password=${encodeURIComponent(password)}` : '';
-      const response = await fetch(`/api/shares/${id}/download${pwdQuery}&inline=true`);
+      const response = await fetch(previewUrl);
       if (response.ok) {
         const text = await response.text();
         if (isCsv) {
@@ -139,6 +143,26 @@ export default function ShareView() {
       setLoadingPreview(false);
       setAssetLoading(false);
     }
+  };
+
+  const handleImageError = async () => {
+    if (!blobObjectUrl && previewUrl) {
+      try {
+        console.log('Direct image load failed, attempting Blob URL fetch retry...');
+        const response = await fetch(previewUrl);
+        if (response.ok) {
+          const blob = await response.blob();
+          const objectUrl = URL.createObjectURL(blob);
+          setBlobObjectUrl(objectUrl);
+          setAssetLoading(false);
+          return;
+        }
+      } catch (err) {
+        console.error('Blob object URL fallback failed:', err);
+      }
+    }
+    setPreviewFailed(true);
+    setAssetLoading(false);
   };
 
   const handleVerifyPassword = async (e: React.FormEvent) => {
@@ -181,7 +205,7 @@ export default function ShareView() {
   if (error) {
     return (
       <div className="flex-1 bg-neutral-50 dark:bg-neutral-900 flex items-center justify-center py-16 px-4">
-        <div className="max-w-md w-full bg-white dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 rounded-3xl p-8 text-center shadow-md">
+        <div className="max-w-md w-full bg-white dark:bg-neutral-955 border border-neutral-200 dark:border-neutral-800 rounded-3xl p-8 text-center shadow-md">
           <ShieldAlert className="h-16 w-16 text-red-500 mx-auto mb-4" />
           <h2 className="text-xl font-bold text-neutral-800 dark:text-white mb-2">Access Error</h2>
           <p className="text-neutral-500 dark:text-neutral-400 text-sm mb-6 leading-relaxed">
@@ -201,7 +225,7 @@ export default function ShareView() {
   if (!isPasswordVerified) {
     return (
       <div className="flex-1 bg-neutral-50 dark:bg-neutral-900 flex items-center justify-center py-16 px-4">
-        <div className="max-w-md w-full bg-white dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 rounded-3xl p-8 text-center shadow-md">
+        <div className="max-w-md w-full bg-white dark:bg-neutral-955 border border-neutral-200 dark:border-neutral-800 rounded-3xl p-8 text-center shadow-md">
           <div className="p-4 bg-brand-500/10 text-brand-500 rounded-2xl inline-block mb-4">
             <Lock className="h-8 w-8" />
           </div>
@@ -237,16 +261,19 @@ export default function ShareView() {
 
   if (!file) return null;
 
-  const downloadUrl = `/api/shares/${file.id}/download${password ? `?password=${encodeURIComponent(password)}` : ''}`;
-  const previewUrl = `${downloadUrl}${downloadUrl.includes('?') ? '&' : '?'}inline=true`;
   const mime = file.mime_type.toLowerCase();
+  const nameLower = file.name.toLowerCase();
 
   const isImage = mime.startsWith('image/');
   const isVideo = mime.startsWith('video/');
   const isAudio = mime.startsWith('audio/');
   const isPdf = mime === 'application/pdf';
-  const isText = mime.startsWith('text/') || mime.includes('json') || mime.includes('javascript') || mime.includes('xml') || file.name.endsWith('.md') || file.name.endsWith('.ts') || file.name.endsWith('.yaml') || file.name.endsWith('.yml');
-  const isCsv = file.name.endsWith('.csv') || mime.includes('csv');
+  const isOffice = nameLower.endsWith('.docx') || nameLower.endsWith('.xlsx') || nameLower.endsWith('.pptx');
+  const isText = mime.startsWith('text/') || mime.includes('json') || mime.includes('javascript') || mime.includes('xml') || nameLower.endsWith('.md') || nameLower.endsWith('.ts') || nameLower.endsWith('.yaml') || nameLower.endsWith('.yml');
+  const isCsv = nameLower.endsWith('.csv') || mime.includes('csv');
+
+  const imageSrc = blobObjectUrl || previewUrl;
+  const officeEmbedUrl = `https://docs.google.com/gview?url=${encodeURIComponent(window.location.origin + previewUrl)}&embedded=true`;
 
   return (
     <div className="bg-neutral-50 dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 flex-1 py-12 px-4 sm:px-6 lg:px-8">
@@ -264,11 +291,11 @@ export default function ShareView() {
             </button>
             <div className="overflow-auto max-h-full max-w-full flex items-center justify-center">
               <img
-                src={previewUrl}
+                src={imageSrc}
                 alt={file.name}
                 style={{ 
                   transform: `scale(${zoomLevel}) rotate(${rotationAngle}deg)`, 
-                  transition: 'transform 0.15s ease-out-cubic' 
+                  transition: 'transform 0.15s ease-out' 
                 }}
                 className="max-h-[90vh] max-w-[90vw] object-contain select-none"
               />
@@ -308,7 +335,7 @@ export default function ShareView() {
               <span>Browser Preview Panel</span>
             </div>
             {isImage && !previewFailed && !assetLoading && (
-              <div className="flex items-center gap-1.5 bg-neutral-55 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 px-2 py-1 rounded-xl">
+              <div className="flex items-center gap-1.5 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 px-2 py-1 rounded-xl">
                 <button 
                   onClick={() => setZoomLevel(prev => Math.min(prev + 0.25, 3.0))} 
                   className="p-1.5 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-lg transition-all" 
@@ -352,20 +379,20 @@ export default function ShareView() {
             {(loadingPreview || assetLoading) && (
               <div className="absolute inset-0 flex flex-col gap-4 items-center justify-center bg-white/90 dark:bg-neutral-955/90 z-10 transition-opacity duration-300">
                 <RefreshCw className="h-8 w-8 text-brand-500 animate-spin mb-2" />
-                <p className="text-xs text-neutral-450 animate-pulse">Resolving secure preview streams...</p>
+                <p className="text-xs text-neutral-450 animate-pulse">Loading preview stream...</p>
               </div>
             )}
 
             {previewFailed ? (
               <div className="text-center p-8 max-w-md">
                 <AlertTriangle className="h-14 w-14 text-amber-500 mx-auto mb-4 animate-bounce" />
-                <h3 className="text-base font-bold text-neutral-800 dark:text-neutral-100 mb-1">Preview Unresolved</h3>
-                <p className="text-sm text-neutral-550 dark:text-neutral-400 mb-6 leading-relaxed">
-                  The file content could not be previewed inline. This occurs when the resource is temporarily offline, private, or has an unsupported structure.
+                <h3 className="text-base font-bold text-neutral-800 dark:text-neutral-100 mb-1">Preview Unavailable</h3>
+                <p className="text-sm text-neutral-500 dark:text-neutral-400 mb-6 leading-relaxed">
+                  The file content could not be previewed directly in the browser. You can download the file directly below.
                 </p>
                 <a 
                   href={downloadUrl} 
-                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-900 dark:hover:bg-neutral-850 text-neutral-700 dark:text-neutral-200 font-semibold rounded-xl text-xs transition-colors"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-brand-500 hover:bg-brand-600 text-white font-semibold rounded-xl text-xs transition-colors shadow-md shadow-brand-500/20"
                 >
                   <Download className="h-4 w-4" />
                   <span>Download File Directly</span>
@@ -374,10 +401,10 @@ export default function ShareView() {
             ) : isImage ? (
               <div className="overflow-hidden max-h-[600px] w-full flex items-center justify-center p-4">
                 <img
-                  src={previewUrl}
+                  src={imageSrc}
                   alt={file.name}
                   onLoad={() => setAssetLoading(false)}
-                  onError={() => { setPreviewFailed(true); setAssetLoading(false); }}
+                  onError={handleImageError}
                   style={{ 
                     transform: `scale(${zoomLevel}) rotate(${rotationAngle}deg)`, 
                     transition: 'transform 0.15s ease-out' 
@@ -413,6 +440,14 @@ export default function ShareView() {
                 onError={() => { setPreviewFailed(true); setAssetLoading(false); }}
                 className="w-full h-[600px] rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900"
               />
+            ) : isOffice ? (
+              <iframe
+                src={officeEmbedUrl}
+                title={file.name}
+                onLoad={() => setAssetLoading(false)}
+                onError={() => { setPreviewFailed(true); setAssetLoading(false); }}
+                className="w-full h-[600px] rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white"
+              />
             ) : isCsv ? (
               <div className="w-full overflow-x-auto border border-neutral-200 dark:border-neutral-800 rounded-2xl shadow-inner">
                 <table className="min-w-full divide-y divide-neutral-200 dark:divide-neutral-850 text-left text-xs">
@@ -435,9 +470,9 @@ export default function ShareView() {
               </div>
             ) : (
               <div className="text-center p-8 text-neutral-450 dark:text-neutral-550 max-w-sm">
-                <EyeOff className="h-12 w-12 mx-auto mb-4 text-neutral-350 dark:text-neutral-650" />
+                <FileText className="h-12 w-12 mx-auto mb-4 text-brand-500/80" />
                 <p className="text-sm font-semibold mb-1 text-neutral-700 dark:text-neutral-300">Direct preview unavailable</p>
-                <p className="text-xs mb-6">This file format is not supported for inline rendering.</p>
+                <p className="text-xs mb-6">This file format is not supported for inline browser rendering.</p>
                 <a 
                   href={downloadUrl} 
                   className="inline-flex items-center gap-2 px-5 py-2.5 bg-brand-500 hover:bg-brand-600 text-white font-semibold rounded-xl text-xs transition-colors shadow-md shadow-brand-500/10"

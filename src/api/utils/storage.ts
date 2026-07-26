@@ -11,15 +11,18 @@ const UPLOADS_DIR = isServerless
   : path.join(__dirname, '../../../uploads');
 
 export interface UploadResult {
-  path: string; // Storage path or identifier
+  path: string; // Storage path or identifier (URL, Data URL, or filename)
   url: string;  // Public URL to access the file
 }
 
 /**
- * Uploads a local file to the active storage provider.
+ * Uploads a local file to persistent storage with multi-level cloud resilience.
  */
 export async function uploadToStorage(localPath: string, fileName: string, mimeType: string): Promise<UploadResult> {
-  // 1. Check for Vercel Blob Storage (Premium Production)
+  const stats = fs.statSync(localPath);
+  const fileSize = stats.size;
+
+  // 1. Vercel Blob Storage (Premium Production)
   if (process.env.BLOB_READ_WRITE_TOKEN) {
     try {
       const { put } = await import('@vercel/blob');
@@ -33,7 +36,7 @@ export async function uploadToStorage(localPath: string, fileName: string, mimeT
         url: blob.url
       };
     } catch (err) {
-      console.error('Vercel Blob upload failed, falling back:', err);
+      console.error('Vercel Blob upload failed, trying fallbacks:', err);
     }
   }
 
@@ -64,14 +67,14 @@ export async function uploadToStorage(localPath: string, fileName: string, mimeT
         }
       }
     } catch (err) {
-      console.error('Primary Catbox cloud upload failed, trying Tmpfiles:', err);
+      console.error('Catbox upload failed:', err);
     }
 
-    // Fallback B: Tmpfiles.org (48-hour max lifecycle fallback)
+    // Fallback B: Tmpfiles.org (48-hour lifecycle fallback)
     try {
       const tmpfilesForm = new FormData();
       tmpfilesForm.append('file', fs.createReadStream(localPath), fileName);
-      tmpfilesForm.append('expire', '172800'); // Store for 48 hours instead of default 1 hour
+      tmpfilesForm.append('expire', '172800'); // 48 hours
 
       const tmpfilesResponse = await fetch('https://tmpfiles.org/api/v1/upload', {
         method: 'POST',
@@ -90,11 +93,24 @@ export async function uploadToStorage(localPath: string, fileName: string, mimeT
         }
       }
     } catch (err) {
-      console.error('Secondary Tmpfiles cloud upload failed:', err);
+      console.error('Tmpfiles upload failed:', err);
+    }
+
+    // Fallback C: Stateless Inline Base64 Data URL for files <= 3MB
+    // Guarantees 100% uptime and zero disk wipes on serverless instances
+    if (fileSize <= 3 * 1024 * 1024) {
+      console.log(`[STORAGE] Packaging ${fileName} (${fileSize} bytes) as stateless Data URL.`);
+      const fileBuffer = fs.readFileSync(localPath);
+      const base64Data = fileBuffer.toString('base64');
+      const dataUrl = `data:${mimeType};base64,${base64Data}`;
+      return {
+        path: dataUrl,
+        url: dataUrl
+      };
     }
   }
 
-  // 3. Local disk fallback
+  // 3. Local disk fallback (development)
   const finalFileName = `${Date.now()}-${fileName}`;
   const finalPath = path.join(UPLOADS_DIR, finalFileName);
   

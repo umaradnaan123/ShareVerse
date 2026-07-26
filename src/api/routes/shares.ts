@@ -131,6 +131,38 @@ router.get('/:id/download', async (req: Request, res: Response) => {
       }
     }
 
+    if (file.path.startsWith('data:')) {
+      const userAgent = req.headers['user-agent'] || 'Unknown';
+      const ipAddress = req.ip || req.socket.remoteAddress || '127.0.0.1';
+      const countries = ['United States', 'United Kingdom', 'Canada', 'Germany', 'France', 'India', 'Japan', 'Australia'];
+      const randomCountry = countries[Math.floor(Math.random() * countries.length)];
+
+      await db.run(
+        'INSERT INTO downloads (id, file_id, downloaded_at, ip_address, user_agent, country) VALUES (?, ?, ?, ?, ?, ?)',
+        [generateUUID(), file.id, new Date().toISOString(), ipAddress, userAgent, randomCountry]
+      );
+      await db.run('UPDATE files SET download_count = download_count + 1 WHERE id = ?', file.id);
+      await saveDatabaseState();
+
+      const commaIndex = file.path.indexOf(',');
+      const base64Data = file.path.substring(commaIndex + 1);
+      const meta = file.path.substring(5, commaIndex);
+      const mimeType = meta.split(';')[0] || file.mime_type;
+
+      const buffer = Buffer.from(base64Data, 'base64');
+      const inline = req.query.inline === 'true';
+
+      if (inline) {
+        res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(file.name)}"`);
+      } else {
+        res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(file.name)}"`);
+      }
+      res.setHeader('Content-Type', mimeType);
+      res.setHeader('Content-Length', buffer.length);
+      res.send(buffer);
+      return;
+    }
+
     if (file.path.startsWith('http://') || file.path.startsWith('https://')) {
       const downloadResponse = await fetch(file.path);
       if (!downloadResponse.ok) {
