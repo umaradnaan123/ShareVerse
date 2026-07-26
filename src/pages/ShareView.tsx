@@ -1,6 +1,22 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { File, Download, ShieldAlert, Eye, Lock, RefreshCw, AlertCircle, Music } from 'lucide-react';
+import { 
+  File, 
+  Download, 
+  ShieldAlert, 
+  Eye, 
+  Lock, 
+  RefreshCw, 
+  AlertCircle, 
+  Music,
+  ZoomIn,
+  ZoomOut,
+  RotateCw,
+  Maximize2,
+  Minimize2,
+  AlertTriangle,
+  EyeOff
+} from 'lucide-react';
 
 interface FileDetails {
   id: string;
@@ -27,6 +43,13 @@ export default function ShareView() {
   const [csvData, setCsvData] = useState<string[][]>([]);
   const [loadingPreview, setLoadingPreview] = useState(false);
 
+  // Preview interactive features state
+  const [zoomLevel, setZoomLevel] = useState(1);
+  const [rotationAngle, setRotationAngle] = useState(0);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [previewFailed, setPreviewFailed] = useState(false);
+  const [assetLoading, setAssetLoading] = useState(true);
+
   const fetchDetails = async () => {
     setLoading(true);
     setError(null);
@@ -42,7 +65,7 @@ export default function ShareView() {
         setIsPasswordVerified(true);
       }
     } catch (err: any) {
-      setError(err.message);
+      setError(err.message || 'Shareable link not found or has been deleted.');
     } finally {
       setLoading(false);
     }
@@ -75,20 +98,29 @@ export default function ShareView() {
   useEffect(() => {
     if (!file || !isPasswordVerified) return;
 
+    // Reset interactive preview features for new file access
+    setPreviewFailed(false);
+    setAssetLoading(true);
+    setZoomLevel(1);
+    setRotationAngle(0);
+
     const mime = file.mime_type.toLowerCase();
     const isText = mime.startsWith('text/') || mime.includes('json') || mime.includes('javascript') || mime.includes('xml') || file.name.endsWith('.md') || file.name.endsWith('.ts') || file.name.endsWith('.yaml') || file.name.endsWith('.yml');
     const isCsv = file.name.endsWith('.csv') || mime.includes('csv');
 
     if (isText || isCsv) {
       loadPreviewText(isCsv);
+    } else {
+      setAssetLoading(false);
     }
   }, [file, isPasswordVerified]);
 
   const loadPreviewText = async (isCsv: boolean) => {
     setLoadingPreview(true);
+    setPreviewFailed(false);
     try {
       const pwdQuery = password ? `?password=${encodeURIComponent(password)}` : '';
-      const response = await fetch(`/api/shares/${id}/download${pwdQuery}`);
+      const response = await fetch(`/api/shares/${id}/download${pwdQuery}&inline=true`);
       if (response.ok) {
         const text = await response.text();
         if (isCsv) {
@@ -97,11 +129,15 @@ export default function ShareView() {
         } else {
           setPreviewContent(text);
         }
+      } else {
+        setPreviewFailed(true);
       }
     } catch (err) {
       console.error('Error fetching preview data:', err);
+      setPreviewFailed(true);
     } finally {
       setLoadingPreview(false);
+      setAssetLoading(false);
     }
   };
 
@@ -144,14 +180,19 @@ export default function ShareView() {
 
   if (error) {
     return (
-      <div className="flex-1 bg-neutral-50 dark:bg-neutral-900 flex items-center justify-center py-20 px-4">
-        <div className="text-center max-w-sm p-6 bg-white dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-3xl shadow-lg">
-          <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-          <h2 className="text-xl font-bold mb-2">Access Error</h2>
-          <p className="text-sm text-neutral-500 dark:text-neutral-400 mb-6">{error}</p>
-          <button onClick={fetchDetails} className="px-6 py-2.5 bg-brand-500 hover:bg-brand-600 text-white rounded-xl text-sm font-semibold transition-colors">
-            Retry Connection
-          </button>
+      <div className="flex-1 bg-neutral-50 dark:bg-neutral-900 flex items-center justify-center py-16 px-4">
+        <div className="max-w-md w-full bg-white dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 rounded-3xl p-8 text-center shadow-md">
+          <ShieldAlert className="h-16 w-16 text-red-500 mx-auto mb-4" />
+          <h2 className="text-xl font-bold text-neutral-800 dark:text-white mb-2">Access Error</h2>
+          <p className="text-neutral-500 dark:text-neutral-400 text-sm mb-6 leading-relaxed">
+            {error}
+          </p>
+          <a
+            href="/"
+            className="inline-block py-2.5 px-6 bg-brand-500 hover:bg-brand-600 text-white font-semibold rounded-xl text-sm transition-colors"
+          >
+            Return to Dashboard
+          </a>
         </div>
       </div>
     );
@@ -159,31 +200,37 @@ export default function ShareView() {
 
   if (!isPasswordVerified) {
     return (
-      <div className="flex-1 bg-neutral-50 dark:bg-neutral-900 flex items-center justify-center py-20 px-4">
-        <form onSubmit={handleVerifyPassword} className="w-full max-w-sm bg-white dark:bg-neutral-955 border border-neutral-200 dark:border-neutral-800 rounded-3xl p-8 shadow-xl text-center">
-          <Lock className="h-12 w-12 text-brand-500 mx-auto mb-4 animate-bounce" />
-          <h2 className="text-xl font-bold mb-2">Password Protected</h2>
-          <p className="text-sm text-neutral-500 dark:text-neutral-400 mb-6">
-            This shared file link is password encrypted. Enter the key to proceed.
+      <div className="flex-1 bg-neutral-50 dark:bg-neutral-900 flex items-center justify-center py-16 px-4">
+        <div className="max-w-md w-full bg-white dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 rounded-3xl p-8 text-center shadow-md">
+          <div className="p-4 bg-brand-500/10 text-brand-500 rounded-2xl inline-block mb-4">
+            <Lock className="h-8 w-8" />
+          </div>
+          <h2 className="text-xl font-bold text-neutral-800 dark:text-white mb-2">Password Protected</h2>
+          <p className="text-neutral-500 dark:text-neutral-400 text-sm mb-6">
+            Enter the password configured for this link to preview and download the file.
           </p>
 
-          {verifyError && (
-            <p className="text-xs font-semibold text-red-500 mb-4">{verifyError}</p>
-          )}
+          <form onSubmit={handleVerifyPassword}>
+            <input
+              type="password"
+              placeholder="Enter password..."
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full px-4 py-2.5 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl outline-none focus:border-brand-500 text-sm mb-4 text-center dark:text-white"
+            />
 
-          <input
-            type="password"
-            required
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full px-4 py-2.5 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl outline-none focus:border-brand-500 text-sm mb-4 text-center"
-          />
+            {verifyError && (
+              <div className="flex items-center justify-center gap-1.5 text-xs text-red-500 mb-4">
+                <AlertCircle className="h-4 w-4" />
+                <span>{verifyError}</span>
+              </div>
+            )}
 
-          <button type="submit" className="w-full py-2.5 bg-brand-500 hover:bg-brand-600 text-white font-semibold rounded-xl text-sm transition-colors">
-            Unlock File
-          </button>
-        </form>
+            <button type="submit" className="w-full py-2.5 bg-brand-500 hover:bg-brand-600 text-white font-semibold rounded-xl text-sm transition-colors">
+              Unlock File
+            </button>
+          </form>
+        </div>
       </div>
     );
   }
@@ -204,6 +251,31 @@ export default function ShareView() {
   return (
     <div className="bg-neutral-50 dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 flex-1 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto space-y-6">
+        
+        {/* Fullscreen Image Lightbox Overlay */}
+        {isFullscreen && isImage && (
+          <div className="fixed inset-0 bg-neutral-950/95 z-[999] flex flex-col items-center justify-center p-4">
+            <button 
+              onClick={() => setIsFullscreen(false)} 
+              className="absolute top-6 right-6 p-3 bg-neutral-800/80 hover:bg-neutral-700 text-white rounded-full transition-colors z-[1000]"
+              title="Close Fullscreen"
+            >
+              <Minimize2 className="h-6 w-6" />
+            </button>
+            <div className="overflow-auto max-h-full max-w-full flex items-center justify-center">
+              <img
+                src={previewUrl}
+                alt={file.name}
+                style={{ 
+                  transform: `scale(${zoomLevel}) rotate(${rotationAngle}deg)`, 
+                  transition: 'transform 0.15s ease-out-cubic' 
+                }}
+                className="max-h-[90vh] max-w-[90vw] object-contain select-none"
+              />
+            </div>
+          </div>
+        )}
+
         <div className="bg-white dark:bg-neutral-955 border border-neutral-200 dark:border-neutral-800 rounded-3xl p-6 sm:p-8 shadow-sm flex flex-col sm:flex-row justify-between items-center gap-6">
           <div className="flex items-center gap-4 w-full sm:w-auto">
             <div className="p-4 bg-brand-500/10 text-brand-500 rounded-2xl shrink-0">
@@ -228,47 +300,127 @@ export default function ShareView() {
           </a>
         </div>
 
+        {/* Browser Preview Panel */}
         <div className="bg-white dark:bg-neutral-955 border border-neutral-200 dark:border-neutral-800 rounded-3xl overflow-hidden shadow-sm">
-          <div className="px-6 py-4 border-b border-neutral-200 dark:border-neutral-800 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-neutral-400">
-            <Eye className="h-4 w-4 text-brand-500" />
-            <span>Browser Preview Panel</span>
+          <div className="px-6 py-4 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between text-sm font-bold tracking-wider text-neutral-400">
+            <div className="flex items-center gap-2 uppercase">
+              <Eye className="h-4 w-4 text-brand-500" />
+              <span>Browser Preview Panel</span>
+            </div>
+            {isImage && !previewFailed && !assetLoading && (
+              <div className="flex items-center gap-1.5 bg-neutral-55 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 px-2 py-1 rounded-xl">
+                <button 
+                  onClick={() => setZoomLevel(prev => Math.min(prev + 0.25, 3.0))} 
+                  className="p-1.5 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-lg transition-all" 
+                  title="Zoom In"
+                >
+                  <ZoomIn className="h-4 w-4" />
+                </button>
+                <button 
+                  onClick={() => setZoomLevel(prev => Math.max(prev - 0.25, 0.5))} 
+                  className="p-1.5 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-lg transition-all" 
+                  title="Zoom Out"
+                >
+                  <ZoomOut className="h-4 w-4" />
+                </button>
+                <button 
+                  onClick={() => setRotationAngle(prev => (prev + 90) % 360)} 
+                  className="p-1.5 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-lg transition-all" 
+                  title="Rotate Right"
+                >
+                  <RotateCw className="h-4 w-4" />
+                </button>
+                <button 
+                  onClick={() => setIsFullscreen(true)} 
+                  className="p-1.5 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-lg transition-all" 
+                  title="Fullscreen"
+                >
+                  <Maximize2 className="h-4 w-4" />
+                </button>
+                <button 
+                  onClick={() => { setZoomLevel(1); setRotationAngle(0); }} 
+                  className="px-2 py-1 text-xs text-neutral-500 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-lg transition-all"
+                >
+                  Reset
+                </button>
+              </div>
+            )}
           </div>
 
-          <div className="p-6 flex flex-col justify-center items-center min-h-[300px]">
-            {loadingPreview ? (
-              <RefreshCw className="h-8 w-8 text-brand-500 animate-spin" />
+          <div className="p-6 flex flex-col justify-center items-center min-h-[350px] relative">
+            {/* Loading Skeleton Overlays */}
+            {(loadingPreview || assetLoading) && (
+              <div className="absolute inset-0 flex flex-col gap-4 items-center justify-center bg-white/90 dark:bg-neutral-955/90 z-10 transition-opacity duration-300">
+                <RefreshCw className="h-8 w-8 text-brand-500 animate-spin mb-2" />
+                <p className="text-xs text-neutral-450 animate-pulse">Resolving secure preview streams...</p>
+              </div>
+            )}
+
+            {previewFailed ? (
+              <div className="text-center p-8 max-w-md">
+                <AlertTriangle className="h-14 w-14 text-amber-500 mx-auto mb-4 animate-bounce" />
+                <h3 className="text-base font-bold text-neutral-800 dark:text-neutral-100 mb-1">Preview Unresolved</h3>
+                <p className="text-sm text-neutral-550 dark:text-neutral-400 mb-6 leading-relaxed">
+                  The file content could not be previewed inline. This occurs when the resource is temporarily offline, private, or has an unsupported structure.
+                </p>
+                <a 
+                  href={downloadUrl} 
+                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-900 dark:hover:bg-neutral-850 text-neutral-700 dark:text-neutral-200 font-semibold rounded-xl text-xs transition-colors"
+                >
+                  <Download className="h-4 w-4" />
+                  <span>Download File Directly</span>
+                </a>
+              </div>
             ) : isImage ? (
-              <img
-                src={previewUrl}
-                alt={file.name}
-                className="max-h-[600px] max-w-full rounded-2xl object-contain border border-neutral-100 dark:border-neutral-900"
-              />
+              <div className="overflow-hidden max-h-[600px] w-full flex items-center justify-center p-4">
+                <img
+                  src={previewUrl}
+                  alt={file.name}
+                  onLoad={() => setAssetLoading(false)}
+                  onError={() => { setPreviewFailed(true); setAssetLoading(false); }}
+                  style={{ 
+                    transform: `scale(${zoomLevel}) rotate(${rotationAngle}deg)`, 
+                    transition: 'transform 0.15s ease-out' 
+                  }}
+                  className="max-h-[500px] max-w-full rounded-2xl object-contain border border-neutral-100 dark:border-neutral-900 select-none shadow-sm"
+                />
+              </div>
             ) : isVideo ? (
               <video
                 controls
                 src={previewUrl}
-                className="max-h-[500px] w-full rounded-2xl bg-black"
+                onLoadedData={() => setAssetLoading(false)}
+                onError={() => { setPreviewFailed(true); setAssetLoading(false); }}
+                className="max-h-[500px] w-full rounded-2xl bg-black shadow-sm"
               />
             ) : isAudio ? (
-              <div className="w-full max-w-md p-6 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl text-center">
+              <div className="w-full max-w-md p-6 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl text-center shadow-sm">
                 <Music className="h-10 w-10 text-brand-500 mx-auto mb-4" />
                 <p className="font-semibold mb-4 text-sm truncate">{file.name}</p>
-                <audio controls src={previewUrl} className="w-full" />
+                <audio 
+                  controls 
+                  src={previewUrl} 
+                  onCanPlay={() => setAssetLoading(false)}
+                  onError={() => { setPreviewFailed(true); setAssetLoading(false); }}
+                  className="w-full" 
+                />
               </div>
             ) : isPdf ? (
               <iframe
                 src={previewUrl}
                 title={file.name}
-                className="w-full h-[600px] rounded-2xl border border-neutral-200 dark:border-neutral-800"
+                onLoad={() => setAssetLoading(false)}
+                onError={() => { setPreviewFailed(true); setAssetLoading(false); }}
+                className="w-full h-[600px] rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900"
               />
             ) : isCsv ? (
-              <div className="w-full overflow-x-auto border border-neutral-200 dark:border-neutral-800 rounded-2xl">
+              <div className="w-full overflow-x-auto border border-neutral-200 dark:border-neutral-800 rounded-2xl shadow-inner">
                 <table className="min-w-full divide-y divide-neutral-200 dark:divide-neutral-850 text-left text-xs">
                   <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800">
                     {csvData.map((row, rIdx) => (
                       <tr key={rIdx} className={rIdx === 0 ? 'bg-neutral-50 dark:bg-neutral-900 font-bold' : ''}>
                         {row.map((cell, cIdx) => (
-                          <td key={cIdx} className="px-4 py-2.5 truncate max-w-[150px]" title={cell}>
+                          <td key={cIdx} className="px-4 py-2.5 truncate max-w-[150px] dark:text-neutral-300" title={cell}>
                             {cell}
                           </td>
                         ))}
@@ -278,18 +430,26 @@ export default function ShareView() {
                 </table>
               </div>
             ) : isText ? (
-              <div className="w-full bg-neutral-950 text-neutral-100 p-6 rounded-2xl font-mono text-xs overflow-x-auto leading-relaxed text-left max-h-[600px] border border-neutral-850">
+              <div className="w-full bg-neutral-950 text-neutral-100 p-6 rounded-2xl font-mono text-xs overflow-x-auto leading-relaxed text-left max-h-[600px] border border-neutral-850 shadow-inner">
                 <pre>{previewContent}</pre>
               </div>
             ) : (
-              <div className="text-center p-8 text-neutral-400 dark:text-neutral-600">
-                <ShieldAlert className="h-12 w-12 mx-auto mb-4 text-brand-500/30" />
-                <p className="text-base font-semibold mb-1">Direct preview unavailable</p>
-                <p className="text-sm">Click the download button above to retrieve file contents.</p>
+              <div className="text-center p-8 text-neutral-450 dark:text-neutral-550 max-w-sm">
+                <EyeOff className="h-12 w-12 mx-auto mb-4 text-neutral-350 dark:text-neutral-650" />
+                <p className="text-sm font-semibold mb-1 text-neutral-700 dark:text-neutral-300">Direct preview unavailable</p>
+                <p className="text-xs mb-6">This file format is not supported for inline rendering.</p>
+                <a 
+                  href={downloadUrl} 
+                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-brand-500 hover:bg-brand-600 text-white font-semibold rounded-xl text-xs transition-colors shadow-md shadow-brand-500/10"
+                >
+                  <Download className="h-4 w-4" />
+                  <span>Download File</span>
+                </a>
               </div>
             )}
           </div>
         </div>
+
       </div>
     </div>
   );
