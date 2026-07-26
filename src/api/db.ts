@@ -15,45 +15,34 @@ export async function initDb() {
     ? '/tmp/shareverse.db' 
     : path.join(__dirname, '../../database/shareverse.db');
 
-  if (isServerless && process.env.BLOB_READ_WRITE_TOKEN) {
-    try {
-      const dbDir = path.dirname(dbPath);
-      if (!fs.existsSync(dbDir)) {
-        fs.mkdirSync(dbDir, { recursive: true });
-      }
+  const dbDir = path.dirname(dbPath);
+  if (!fs.existsSync(dbDir)) {
+    fs.mkdirSync(dbDir, { recursive: true });
+  }
 
-      if (!fs.existsSync(dbPath)) {
-        console.log('Restoring SQLite database state from Vercel Blob...');
-        const { list } = await import('@vercel/blob');
-        const { blobs } = await list({ prefix: 'shareverse_db_' });
+  // Restore latest state at initial boot
+  if (isServerless && process.env.BLOB_READ_WRITE_TOKEN && !fs.existsSync(dbPath)) {
+    try {
+      console.log('Restoring SQLite database state from Vercel Blob at boot...');
+      const { list } = await import('@vercel/blob');
+      const { blobs } = await list({ prefix: 'shareverse_db_' });
+      
+      if (blobs.length > 0) {
+        blobs.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
+        const latestBlob = blobs[0];
+        console.log(`Downloading latest database backup: ${latestBlob.url}`);
         
-        if (blobs.length > 0) {
-          // Sort by upload date descending
-          blobs.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
-          const latestBlob = blobs[0];
-          console.log(`Downloading latest database backup from Vercel Blob: ${latestBlob.url}`);
-          
-          const fetch = (await import('node-fetch')).default;
-          const response = await fetch(latestBlob.url);
-          if (response.ok) {
-            const arrayBuffer = await response.arrayBuffer();
-            const buffer = Buffer.from(arrayBuffer);
-            fs.writeFileSync(dbPath, buffer);
-            console.log('SQLite Database state restored successfully.');
-          } else {
-            console.error('Failed to download database backup from URL:', latestBlob.url);
-          }
-        } else {
-          console.log('No database backup found in Vercel Blob. Starting fresh DB.');
+        const fetch = (await import('node-fetch')).default;
+        const response = await fetch(latestBlob.url);
+        if (response.ok) {
+          const arrayBuffer = await response.arrayBuffer();
+          const buffer = Buffer.from(arrayBuffer);
+          fs.writeFileSync(dbPath, buffer);
+          console.log('SQLite Database state restored successfully.');
         }
       }
     } catch (err) {
       console.error('Failed to restore database from Vercel Blob:', err);
-    }
-  } else if (!isServerless) {
-    const dbDir = path.dirname(dbPath);
-    if (!fs.existsSync(dbDir)) {
-      fs.mkdirSync(dbDir, { recursive: true });
     }
   }
   
@@ -123,6 +112,71 @@ export function getDb() {
 }
 
 /**
+ * Checks Vercel Blob and downloads the database if a newer snapshot has been saved by another instance.
+ */
+export async function syncDatabaseState() {
+  const isServerless = process.env.VERCEL === '1' || process.env.NODE_ENV === 'production';
+  if (!isServerless || !process.env.BLOB_READ_WRITE_TOKEN) return;
+
+  const dbPath = '/tmp/shareverse.db';
+  try {
+    const { list } = await import('@vercel/blob');
+    const { blobs } = await list({ prefix: 'shareverse_db_' });
+
+    if (blobs.length > 0) {
+      blobs.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
+      const latestBlob = blobs[0];
+      
+      let shouldDownload = false;
+      if (!fs.existsSync(dbPath)) {
+        shouldDownload = true;
+      } else {
+        const localStats = fs.statSync(dbPath);
+        const localTime = localStats.mtime.getTime();
+        const remoteTime = new Date(latestBlob.uploadedAt).getTime();
+        
+        // If the cloud backup is newer by more than 1 second, download it
+        if (remoteTime > localTime + 1000) {
+          shouldDownload = true;
+        }
+      }
+
+      if (shouldDownload) {
+        console.log(`[SYNC] Downloading newer database state from Vercel Blob: ${latestBlob.url}`);
+        
+        if (db) {
+          await db.close();
+        }
+        
+        const fetch = (await import('node-fetch')).default;
+        const response = await fetch(latestBlob.url);
+        if (response.ok) {
+          const arrayBuffer = await response.arrayBuffer();
+          const buffer = Buffer.from(arrayBuffer);
+          
+          // Re-create parent directory if needed
+          const dbDir = path.dirname(dbPath);
+          if (!fs.existsSync(dbDir)) {
+            fs.mkdirSync(dbDir, { recursive: true });
+          }
+          
+          fs.writeFileSync(dbPath, buffer);
+          
+          db = await open({
+            filename: dbPath,
+            driver: sqlite3.Database
+          });
+          await db.run('PRAGMA foreign_keys = ON');
+          console.log('[SYNC] SQLite Database updated to latest cloud state.');
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Failed to sync database state from Vercel Blob:', err);
+  }
+}
+
+/**
  * Backs up the SQLite database to Vercel Blob (Background sync).
  */
 export async function saveDatabaseState() {
@@ -143,6 +197,10 @@ export async function saveDatabaseState() {
     });
 
     console.log(`Database state successfully backed up to Vercel Blob: ${blob.url}`);
+
+    // Update local file modification time to align with remote time
+    const now = new Date();
+    fs.utimesSync(dbPath, now, now);
 
     // Clean up older backups
     const { blobs } = await list({ prefix: 'shareverse_db_' });

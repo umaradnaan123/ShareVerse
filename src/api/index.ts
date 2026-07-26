@@ -4,7 +4,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
-import { initDb } from './db.js';
+import { initDb, syncDatabaseState } from './db.js';
 import foldersRouter from './routes/folders.js';
 import filesRouter from './routes/files.js';
 import sharesRouter from './routes/shares.js';
@@ -38,6 +38,16 @@ app.use(express.json());
 
 // Apply rate limiting to API routes
 app.use('/api', rateLimiter);
+
+// Sync SQLite database state from Vercel Blob for stateless serverless containers
+app.use('/api', async (req, res, next) => {
+  try {
+    await syncDatabaseState();
+  } catch (err) {
+    console.error('Failed to sync database state during API request:', err);
+  }
+  next();
+});
 
 // Log incoming requests
 app.use((req, res, next) => {
