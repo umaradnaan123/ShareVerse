@@ -46,3 +46,53 @@ export function generateShortId(length = 8): string {
 export function generateUUID(): string {
   return uuidv4();
 }
+
+/**
+ * Creates a stateless, URL-safe self-contained Share Token.
+ */
+export function createShareToken(metadata: {
+  id?: string;
+  name: string;
+  size: number;
+  mimeType: string;
+  path: string;
+}): string {
+  const payload = {
+    i: metadata.id || uuidv4(),
+    n: metadata.name,
+    s: metadata.size,
+    m: metadata.mimeType,
+    p: metadata.path,
+    c: new Date().toISOString()
+  };
+  return 'sv1_' + Buffer.from(JSON.stringify(payload)).toString('base64url');
+}
+
+/**
+ * Decodes a self-contained Share Token into a full file database record.
+ */
+export function decodeShareToken(token: string): any | null {
+  if (!token || typeof token !== 'string' || !token.startsWith('sv1_')) return null;
+  try {
+    const jsonStr = Buffer.from(token.slice(4), 'base64url').toString('utf-8');
+    const payload = JSON.parse(jsonStr);
+    return {
+      id: token,
+      name: payload.n,
+      size: payload.s,
+      mime_type: payload.m,
+      path: payload.p,
+      parent_folder_id: null,
+      is_public: 1,
+      password_hash: null,
+      expires_at: null,
+      download_limit: null,
+      download_count: 0,
+      is_starred: 0,
+      is_trashed: 0,
+      created_at: payload.c || new Date().toISOString()
+    };
+  } catch (err) {
+    return null;
+  }
+}

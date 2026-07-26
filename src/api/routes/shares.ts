@@ -4,7 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import bcrypt from 'bcryptjs';
 import { getDb, saveDatabaseState } from '../db.js';
-import { generateUUID } from '../utils/security.js';
+import { generateUUID, decodeShareToken } from '../utils/security.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -25,10 +25,14 @@ router.get('/:id', async (req: Request, res: Response) => {
 
   try {
     const db = getDb();
-    const file = await db.get(
+    let file = await db.get(
       'SELECT id, name, size, mime_type, is_public, password_hash, expires_at, download_limit, download_count, created_at FROM files WHERE id = ? AND is_trashed = 0',
       id
     );
+
+    if (!file && id.startsWith('sv1_')) {
+      file = decodeShareToken(id);
+    }
 
     if (!file) {
       return res.status(404).json({ error: 'Shared link not found or file has been deleted.' });
@@ -60,7 +64,11 @@ router.post('/:id/verify-password', async (req: Request, res: Response) => {
 
   try {
     const db = getDb();
-    const file = await db.get('SELECT password_hash FROM files WHERE id = ? AND is_trashed = 0', id);
+    let file = await db.get('SELECT password_hash FROM files WHERE id = ? AND is_trashed = 0', id);
+
+    if (!file && id.startsWith('sv1_')) {
+      file = decodeShareToken(id);
+    }
 
     if (!file) {
       return res.status(404).json({ error: 'Shared link not found.' });
@@ -87,7 +95,22 @@ router.get('/:id/download', async (req: Request, res: Response) => {
 
   try {
     const db = getDb();
-    const file = await db.get('SELECT * FROM files WHERE id = ? AND is_trashed = 0', id);
+    let file = await db.get('SELECT * FROM files WHERE id = ? AND is_trashed = 0', id);
+
+    if (!file && id.startsWith('sv1_')) {
+      file = decodeShareToken(id);
+      if (file) {
+        try {
+          await db.run(
+            `INSERT OR IGNORE INTO files (id, name, size, mime_type, path, parent_folder_id, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [file.id, file.name, file.size, file.mime_type, file.path, null, file.created_at]
+          );
+        } catch (e) {
+          // ignore cache auto-heal errors
+        }
+      }
+    }
 
     if (!file) {
       return res.status(404).json({ error: 'File not found.' });

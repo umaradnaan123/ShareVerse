@@ -4,7 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { getDb, saveDatabaseState } from '../db.js';
-import { generateShortId, generateUUID } from '../utils/security.js';
+import { generateShortId, generateUUID, createShareToken } from '../utils/security.js';
 import bcrypt from 'bcryptjs';
 import { uploadToStorage } from '../utils/storage.js';
 
@@ -142,7 +142,12 @@ router.post('/upload/chunk', upload.single('chunk'), async (req: Request, res: R
       }
 
       const db = getDb();
-      const newFileId = generateUUID();
+      const newFileId = createShareToken({
+        name: fileName,
+        size: size,
+        mimeType: mimeType || 'application/octet-stream',
+        path: storageResult.path
+      });
       const now = new Date().toISOString();
 
       await db.run(
