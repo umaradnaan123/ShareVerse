@@ -109,7 +109,6 @@ router.get('/:id/download', async (req: Request, res: Response) => {
     }
 
     if (file.path.startsWith('http://') || file.path.startsWith('https://')) {
-      const fetch = (await import('node-fetch')).default;
       const downloadResponse = await fetch(file.path);
       if (!downloadResponse.ok) {
         return res.status(404).json({ error: 'Physical file not found on cloud storage server.' });
@@ -127,6 +126,9 @@ router.get('/:id/download', async (req: Request, res: Response) => {
       await db.run('UPDATE files SET download_count = download_count + 1 WHERE id = ?', file.id);
       await saveDatabaseState();
 
+      const arrayBuffer = await downloadResponse.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+
       const inline = req.query.inline === 'true';
       if (inline) {
         res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(file.name)}"`);
@@ -134,11 +136,9 @@ router.get('/:id/download', async (req: Request, res: Response) => {
         res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(file.name)}"`);
       }
       res.setHeader('Content-Type', file.mime_type);
-      if (downloadResponse.headers.get('content-length')) {
-        res.setHeader('Content-Length', downloadResponse.headers.get('content-length')!);
-      }
+      res.setHeader('Content-Length', buffer.length);
       
-      (downloadResponse.body as any).pipe(res);
+      res.send(buffer);
       return;
     }
 
