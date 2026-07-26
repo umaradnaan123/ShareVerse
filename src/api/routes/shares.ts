@@ -108,6 +108,34 @@ router.get('/:id/download', async (req: Request, res: Response) => {
       }
     }
 
+    if (file.path.startsWith('http://') || file.path.startsWith('https://')) {
+      const fetch = (await import('node-fetch')).default;
+      const downloadResponse = await fetch(file.path);
+      if (!downloadResponse.ok) {
+        return res.status(404).json({ error: 'Physical file not found on cloud storage server.' });
+      }
+
+      const userAgent = req.headers['user-agent'] || 'Unknown';
+      const ipAddress = req.ip || req.socket.remoteAddress || '127.0.0.1';
+      const countries = ['United States', 'United Kingdom', 'Canada', 'Germany', 'France', 'India', 'Japan', 'Australia'];
+      const randomCountry = countries[Math.floor(Math.random() * countries.length)];
+
+      await db.run(
+        'INSERT INTO downloads (id, file_id, downloaded_at, ip_address, user_agent, country) VALUES (?, ?, ?, ?, ?, ?)',
+        [generateUUID(), file.id, new Date().toISOString(), ipAddress, userAgent, randomCountry]
+      );
+      await db.run('UPDATE files SET download_count = download_count + 1 WHERE id = ?', file.id);
+
+      res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(file.name)}"`);
+      res.setHeader('Content-Type', file.mime_type);
+      if (downloadResponse.headers.get('content-length')) {
+        res.setHeader('Content-Length', downloadResponse.headers.get('content-length')!);
+      }
+      
+      (downloadResponse.body as any).pipe(res);
+      return;
+    }
+
     const filePath = path.join(UPLOADS_DIR, file.path);
     if (!fs.existsSync(filePath)) {
       return res.status(404).json({ error: 'Physical file not found on storage server.' });

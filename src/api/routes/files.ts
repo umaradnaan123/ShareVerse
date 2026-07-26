@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import { getDb } from '../db.js';
 import { generateShortId, generateUUID } from '../utils/security.js';
 import bcrypt from 'bcryptjs';
+import { uploadToStorage } from '../utils/storage.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -130,6 +131,16 @@ router.post('/upload/chunk', upload.single('chunk'), async (req: Request, res: R
 
       cleanTempFolderAsync(fileFolder);
 
+      // Upload merged file output to persistent storage
+      const storageResult = await uploadToStorage(finalFilePath, fileName, mimeType || 'application/octet-stream');
+      
+      // Clean up the local combined file if running serverless/cloud to prevent disk leaks
+      try {
+        fs.unlinkSync(finalFilePath);
+      } catch (err) {
+        console.error('Failed to cleanup local merged file:', err);
+      }
+
       const db = getDb();
       const newFileId = generateUUID();
       const now = new Date().toISOString();
@@ -142,7 +153,7 @@ router.post('/upload/chunk', upload.single('chunk'), async (req: Request, res: R
           fileName,
           size,
           mimeType || 'application/octet-stream',
-          finalFileName,
+          storageResult.path, // Save the cloud storage url or local file identifier
           parentFolderId === 'root' || !parentFolderId ? null : parentFolderId,
           now
         ]
