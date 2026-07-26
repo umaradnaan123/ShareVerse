@@ -19,7 +19,7 @@ export interface UploadResult {
  * Uploads a local file to the active storage provider.
  */
 export async function uploadToStorage(localPath: string, fileName: string, mimeType: string): Promise<UploadResult> {
-  // 1. Check for Vercel Blob Storage
+  // 1. Check for Vercel Blob Storage (Premium Production)
   if (process.env.BLOB_READ_WRITE_TOKEN) {
     try {
       const { put } = await import('@vercel/blob');
@@ -37,26 +37,51 @@ export async function uploadToStorage(localPath: string, fileName: string, mimeT
     }
   }
 
-  // 2. Anonymous Public Cloud Storage Fallback (for zero-config Vercel)
+  // 2. Serverless Cloud Fallbacks
   if (isServerless) {
-    try {
-      const FormData = (await import('form-data')).default;
-      const fetch = (await import('node-fetch')).default;
-      
-      const form = new FormData();
-      form.append('file', fs.createReadStream(localPath), fileName);
+    const FormData = (await import('form-data')).default;
+    const fetch = (await import('node-fetch')).default;
 
-      // Upload to tmpfiles.org
-      const response = await fetch('https://tmpfiles.org/api/v1/upload', {
+    // Fallback A: Catbox.moe (Indefinite lifecycle anonymous storage)
+    try {
+      const catboxForm = new FormData();
+      catboxForm.append('reqtype', 'fileupload');
+      catboxForm.append('fileToUpload', fs.createReadStream(localPath), fileName);
+
+      const catboxResponse = await fetch('https://catbox.moe/user/api.php', {
         method: 'POST',
-        body: form as any,
-        headers: form.getHeaders(),
+        body: catboxForm as any,
+        headers: catboxForm.getHeaders(),
       });
 
-      if (response.ok) {
-        const json = await response.json() as any;
+      if (catboxResponse.ok) {
+        const fileUrl = await catboxResponse.text();
+        if (fileUrl && fileUrl.trim().startsWith('http')) {
+          return {
+            path: fileUrl.trim(),
+            url: fileUrl.trim()
+          };
+        }
+      }
+    } catch (err) {
+      console.error('Primary Catbox cloud upload failed, trying Tmpfiles:', err);
+    }
+
+    // Fallback B: Tmpfiles.org (48-hour max lifecycle fallback)
+    try {
+      const tmpfilesForm = new FormData();
+      tmpfilesForm.append('file', fs.createReadStream(localPath), fileName);
+      tmpfilesForm.append('expire', '172800'); // Store for 48 hours instead of default 1 hour
+
+      const tmpfilesResponse = await fetch('https://tmpfiles.org/api/v1/upload', {
+        method: 'POST',
+        body: tmpfilesForm as any,
+        headers: tmpfilesForm.getHeaders(),
+      });
+
+      if (tmpfilesResponse.ok) {
+        const json = await tmpfilesResponse.json() as any;
         if (json.status === 'success' && json.data?.url) {
-          // Direct download link substitution
           const directUrl = json.data.url.replace('https://tmpfiles.org/', 'https://tmpfiles.org/dl/');
           return {
             path: directUrl,
@@ -65,7 +90,7 @@ export async function uploadToStorage(localPath: string, fileName: string, mimeT
         }
       }
     } catch (err) {
-      console.error('Anonymous cloud upload failed, falling back:', err);
+      console.error('Secondary Tmpfiles cloud upload failed:', err);
     }
   }
 
