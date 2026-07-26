@@ -96,18 +96,16 @@ export async function uploadToStorage(localPath: string, fileName: string, mimeT
       console.error('Tmpfiles upload failed:', err);
     }
 
-    // Fallback C: Stateless Inline Base64 Data URL for files <= 3MB
+    // Fallback C: Stateless Inline Base64 Data URL for serverless mode
     // Guarantees 100% uptime and zero disk wipes on serverless instances
-    if (fileSize <= 3 * 1024 * 1024) {
-      console.log(`[STORAGE] Packaging ${fileName} (${fileSize} bytes) as stateless Data URL.`);
-      const fileBuffer = fs.readFileSync(localPath);
-      const base64Data = fileBuffer.toString('base64');
-      const dataUrl = `data:${mimeType};base64,${base64Data}`;
-      return {
-        path: dataUrl,
-        url: dataUrl
-      };
-    }
+    console.log(`[STORAGE] Packaging ${fileName} (${fileSize} bytes) as stateless Data URL fallback.`);
+    const fileBuffer = fs.readFileSync(localPath);
+    const base64Data = fileBuffer.toString('base64');
+    const dataUrl = `data:${mimeType};base64,${base64Data}`;
+    return {
+      path: dataUrl,
+      url: dataUrl
+    };
   }
 
   // 3. Local disk fallback (development)
