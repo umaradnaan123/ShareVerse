@@ -9,6 +9,7 @@ interface ShareModalProps {
     is_public: number;
     expires_at: string | null;
     download_limit: number | null;
+    password_hash?: string | null;
   };
   onClose: () => void;
 }
@@ -19,11 +20,15 @@ export default function ShareModal({ file, onClose }: ShareModalProps) {
   const [qrCodeData, setQrCodeData] = useState<string>('');
   
   const [isPublic, setIsPublic] = useState(file.is_public === 1);
+  const [enablePassword, setEnablePassword] = useState(!!file.password_hash);
   const [password, setPassword] = useState('');
+  const [enableExpiration, setEnableExpiration] = useState(!!file.expires_at);
   const [expiresAt, setExpiresAt] = useState(file.expires_at ? file.expires_at.substring(0, 16) : '');
+  const [enableDownloadLimit, setEnableDownloadLimit] = useState(!!file.download_limit);
   const [downloadLimit, setDownloadLimit] = useState(file.download_limit ? file.download_limit.toString() : '');
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     QRCode.toDataURL(shareUrl, { width: 200, margin: 2 }, (err, url) => {
@@ -59,6 +64,26 @@ export default function ShareModal({ file, onClose }: ShareModalProps) {
     e.preventDefault();
     setSaving(true);
     setSaveSuccess(false);
+    setError(null);
+
+    // Client-side validations
+    if (enablePassword && !password && !file.password_hash) {
+      setError('Please enter a password.');
+      setSaving(false);
+      return;
+    }
+
+    if (enableExpiration && !expiresAt) {
+      setError('Please select a valid expiration date.');
+      setSaving(false);
+      return;
+    }
+
+    if (enableDownloadLimit && (!downloadLimit || parseInt(downloadLimit, 10) < 1)) {
+      setError('Please enter a valid download limit (minimum 1).');
+      setSaving(false);
+      return;
+    }
 
     try {
       const response = await fetch(`/api/files/${file.id}`, {
@@ -68,9 +93,9 @@ export default function ShareModal({ file, onClose }: ShareModalProps) {
         },
         body: JSON.stringify({
           isPublic: isPublic ? 1 : 0,
-          password: password || undefined,
-          expiresAt: expiresAt || null,
-          downloadLimit: downloadLimit ? parseInt(downloadLimit, 10) : null
+          password: enablePassword ? (password || undefined) : null,
+          expiresAt: enableExpiration ? (expiresAt || null) : null,
+          downloadLimit: enableDownloadLimit ? (downloadLimit ? parseInt(downloadLimit, 10) : null) : null
         })
       });
 
@@ -78,9 +103,13 @@ export default function ShareModal({ file, onClose }: ShareModalProps) {
         setSaveSuccess(true);
         setTimeout(() => setSaveSuccess(false), 3000);
         window.dispatchEvent(new CustomEvent('sv-file-updated'));
+      } else {
+        const errData = await response.json();
+        setError(errData.error || 'Failed to save configuration settings.');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error saving settings:', err);
+      setError('Network error: Failed to connect to server.');
     } finally {
       setSaving(false);
     }
@@ -139,89 +168,159 @@ export default function ShareModal({ file, onClose }: ShareModalProps) {
           </div>
 
           <form onSubmit={handleSaveSettings} className="space-y-4">
-            <h3 className="font-semibold text-neutral-800 dark:text-neutral-200 text-sm flex items-center gap-2">
+            <h3 className="font-semibold text-neutral-800 dark:text-neutral-200 text-sm flex items-center gap-2 mb-2">
               <Shield className="h-4 w-4 text-brand-500" />
               <span>Link Configuration Settings</span>
             </h3>
 
-            <div className="flex items-center justify-between py-2">
+            {/* Public Listing Toggle */}
+            <div className="flex items-center justify-between py-2 border-b border-neutral-100 dark:border-neutral-800/60 pb-3">
               <div>
                 <label className="text-sm font-medium text-neutral-800 dark:text-neutral-200">
                   Public Listing
                 </label>
                 <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                  Whether search bots or link directories see details
+                  Allow search engines and directories to index this file
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setIsPublic(!isPublic)}
-                className={`p-2 rounded-lg transition-colors ${
-                  isPublic
-                    ? 'bg-green-500/10 text-green-500 hover:bg-green-500/20'
-                    : 'bg-red-500/10 text-red-500 hover:bg-red-500/20'
+                className={`w-12 h-6 flex items-center rounded-full p-1 transition-colors duration-200 focus:outline-none ${
+                  isPublic ? 'bg-brand-500 justify-end' : 'bg-neutral-350 dark:bg-neutral-800 justify-start'
                 }`}
+                aria-label="Toggle Public Listing"
               >
-                {isPublic ? <Eye className="h-5 w-5" /> : <EyeOff className="h-5 w-5" />}
+                <span className="bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-200" />
               </button>
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider mb-1">
-                Password Protection
-              </label>
-              <input
-                type="password"
-                placeholder="Leave blank to keep unprotected"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-brand-500 text-neutral-800 dark:text-neutral-100"
-              />
+            {/* Password Protection Toggle & Input */}
+            <div className="py-2 border-b border-neutral-100 dark:border-neutral-800/60 pb-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <label className="text-sm font-medium text-neutral-800 dark:text-neutral-200">
+                    Password Protection
+                  </label>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                    Require visitors to enter a password to download
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEnablePassword(!enablePassword)}
+                  className={`w-12 h-6 flex items-center rounded-full p-1 transition-colors duration-200 focus:outline-none ${
+                    enablePassword ? 'bg-brand-500 justify-end' : 'bg-neutral-350 dark:bg-neutral-800 justify-start'
+                  }`}
+                  aria-label="Toggle Password Protection"
+                >
+                  <span className="bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-200" />
+                </button>
+              </div>
+              {enablePassword && (
+                <div className="mt-3 animate-fade-in">
+                  <input
+                    type="password"
+                    placeholder={file.password_hash ? "•••••••• (Enter new password to change)" : "Enter password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-2 text-sm outline-none focus:border-brand-500 text-neutral-800 dark:text-neutral-100"
+                  />
+                </div>
+              )}
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider mb-1 flex items-center gap-1">
-                <Calendar className="h-3 w-3" />
-                <span>Expiration Date</span>
-              </label>
-              <input
-                type="datetime-local"
-                value={expiresAt}
-                onChange={(e) => setExpiresAt(e.target.value)}
-                className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-brand-500 text-neutral-800 dark:text-neutral-100"
-              />
+            {/* Expiration Date Toggle & Input */}
+            <div className="py-2 border-b border-neutral-100 dark:border-neutral-800/60 pb-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <label className="text-sm font-medium text-neutral-800 dark:text-neutral-200">
+                    Expiration Date
+                  </label>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                    Automatically disable link access after a specific time
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEnableExpiration(!enableExpiration)}
+                  className={`w-12 h-6 flex items-center rounded-full p-1 transition-colors duration-200 focus:outline-none ${
+                    enableExpiration ? 'bg-brand-500 justify-end' : 'bg-neutral-350 dark:bg-neutral-800 justify-start'
+                  }`}
+                  aria-label="Toggle Expiration Date"
+                >
+                  <span className="bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-200" />
+                </button>
+              </div>
+              {enableExpiration && (
+                <div className="mt-3 animate-fade-in">
+                  <input
+                    type="datetime-local"
+                    value={expiresAt}
+                    onChange={(e) => setExpiresAt(e.target.value)}
+                    className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-2 text-sm outline-none focus:border-brand-500 text-neutral-800 dark:text-neutral-100"
+                  />
+                </div>
+              )}
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider mb-1 flex items-center gap-1">
-                <Download className="h-3 w-3" />
-                <span>Limit Download Count</span>
-              </label>
-              <input
-                type="number"
-                placeholder="No limit"
-                min="1"
-                value={downloadLimit}
-                onChange={(e) => setDownloadLimit(e.target.value)}
-                className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-brand-500 text-neutral-800 dark:text-neutral-100"
-              />
+            {/* Download Limit Toggle & Input */}
+            <div className="py-2 border-b border-neutral-100 dark:border-neutral-800/60 pb-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <label className="text-sm font-medium text-neutral-800 dark:text-neutral-200">
+                    Limit Download Count
+                  </label>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                    Limit maximum number of download file resolutions
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEnableDownloadLimit(!enableDownloadLimit)}
+                  className={`w-12 h-6 flex items-center rounded-full p-1 transition-colors duration-200 focus:outline-none ${
+                    enableDownloadLimit ? 'bg-brand-500 justify-end' : 'bg-neutral-350 dark:bg-neutral-800 justify-start'
+                  }`}
+                  aria-label="Toggle Download Limit"
+                >
+                  <span className="bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-200" />
+                </button>
+              </div>
+              {enableDownloadLimit && (
+                <div className="mt-3 animate-fade-in">
+                  <input
+                    type="number"
+                    placeholder="Enter maximum download limit"
+                    min="1"
+                    value={downloadLimit}
+                    onChange={(e) => setDownloadLimit(e.target.value)}
+                    className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-4 py-2 text-sm outline-none focus:border-brand-500 text-neutral-800 dark:text-neutral-100"
+                  />
+                </div>
+              )}
             </div>
+
+            {error && (
+              <p className="text-center text-xs font-semibold text-red-500 animate-fade-in pt-1">
+                {error}
+              </p>
+            )}
+
+            {saveSuccess && (
+              <p className="text-center text-xs font-semibold text-green-500 animate-fade-in pt-1">
+                Configuration applied successfully!
+              </p>
+            )}
 
             <div className="flex gap-2 pt-2">
               <button
                 type="submit"
                 disabled={saving}
-                className="w-full py-2.5 bg-brand-500 hover:bg-brand-600 text-white font-medium rounded-xl text-sm transition-colors shadow-lg shadow-brand-500/20 disabled:opacity-50"
+                className="w-full py-2.5 bg-brand-500 hover:bg-brand-600 text-white font-semibold rounded-xl text-sm transition-colors shadow-lg shadow-brand-500/20 disabled:opacity-50"
               >
                 {saving ? 'Saving...' : 'Save Configuration'}
               </button>
             </div>
-
-            {saveSuccess && (
-              <p className="text-center text-xs font-medium text-green-500 animate-fade-in">
-                Configuration applied successfully!
-              </p>
-            )}
           </form>
         </div>
       </div>

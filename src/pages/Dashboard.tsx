@@ -33,6 +33,7 @@ interface FileItem {
   download_limit: number | null;
   download_count: number;
   created_at: string;
+  password_hash: string | null;
 }
 
 interface FolderItem {
