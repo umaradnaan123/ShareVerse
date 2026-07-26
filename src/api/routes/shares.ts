@@ -126,7 +126,12 @@ router.get('/:id/download', async (req: Request, res: Response) => {
       );
       await db.run('UPDATE files SET download_count = download_count + 1 WHERE id = ?', file.id);
 
-      res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(file.name)}"`);
+      const inline = req.query.inline === 'true';
+      if (inline) {
+        res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(file.name)}"`);
+      } else {
+        res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(file.name)}"`);
+      }
       res.setHeader('Content-Type', file.mime_type);
       if (downloadResponse.headers.get('content-length')) {
         res.setHeader('Content-Length', downloadResponse.headers.get('content-length')!);
@@ -154,7 +159,12 @@ router.get('/:id/download', async (req: Request, res: Response) => {
 
     await db.run('UPDATE files SET download_count = download_count + 1 WHERE id = ?', file.id);
 
-    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(file.name)}"`);
+    const inline = req.query.inline === 'true';
+    if (inline) {
+      res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(file.name)}"`);
+    } else {
+      res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(file.name)}"`);
+    }
     res.setHeader('Content-Type', file.mime_type);
     res.setHeader('Content-Length', file.size);
 

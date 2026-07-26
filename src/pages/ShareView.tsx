@@ -191,6 +191,7 @@ export default function ShareView() {
   if (!file) return null;
 
   const downloadUrl = `/api/shares/${file.id}/download${password ? `?password=${encodeURIComponent(password)}` : ''}`;
+  const previewUrl = `${downloadUrl}${downloadUrl.includes('?') ? '&' : '?'}inline=true`;
   const mime = file.mime_type.toLowerCase();
 
   const isImage = mime.startsWith('image/');
@@ -203,7 +204,7 @@ export default function ShareView() {
   return (
     <div className="bg-neutral-50 dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 flex-1 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto space-y-6">
-        <div className="bg-white dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-3xl p-6 sm:p-8 shadow-sm flex flex-col sm:flex-row justify-between items-center gap-6">
+        <div className="bg-white dark:bg-neutral-955 border border-neutral-200 dark:border-neutral-800 rounded-3xl p-6 sm:p-8 shadow-sm flex flex-col sm:flex-row justify-between items-center gap-6">
           <div className="flex items-center gap-4 w-full sm:w-auto">
             <div className="p-4 bg-brand-500/10 text-brand-500 rounded-2xl shrink-0">
               <File className="h-8 w-8" />
@@ -238,25 +239,25 @@ export default function ShareView() {
               <RefreshCw className="h-8 w-8 text-brand-500 animate-spin" />
             ) : isImage ? (
               <img
-                src={downloadUrl}
+                src={previewUrl}
                 alt={file.name}
                 className="max-h-[600px] max-w-full rounded-2xl object-contain border border-neutral-100 dark:border-neutral-900"
               />
             ) : isVideo ? (
               <video
                 controls
-                src={downloadUrl}
+                src={previewUrl}
                 className="max-h-[500px] w-full rounded-2xl bg-black"
               />
             ) : isAudio ? (
               <div className="w-full max-w-md p-6 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl text-center">
                 <Music className="h-10 w-10 text-brand-500 mx-auto mb-4" />
                 <p className="font-semibold mb-4 text-sm truncate">{file.name}</p>
-                <audio controls src={downloadUrl} className="w-full" />
+                <audio controls src={previewUrl} className="w-full" />
               </div>
             ) : isPdf ? (
               <iframe
-                src={downloadUrl}
+                src={previewUrl}
                 title={file.name}
                 className="w-full h-[600px] rounded-2xl border border-neutral-200 dark:border-neutral-800"
               />
