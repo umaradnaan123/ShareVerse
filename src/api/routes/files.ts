@@ -3,7 +3,7 @@ import multer from 'multer';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { getDb } from '../db.js';
+import { getDb, saveDatabaseState } from '../db.js';
 import { generateShortId, generateUUID } from '../utils/security.js';
 import bcrypt from 'bcryptjs';
 import { uploadToStorage } from '../utils/storage.js';
@@ -160,6 +160,7 @@ router.post('/upload/chunk', upload.single('chunk'), async (req: Request, res: R
       );
 
       const fileRecord = await db.get('SELECT * FROM files WHERE id = ?', newFileId);
+      await saveDatabaseState();
       return res.status(201).json({ completed: true, file: fileRecord });
     }
 
@@ -236,6 +237,7 @@ router.put('/:id', async (req: Request, res: Response) => {
 
     await db.run(query, params);
     const updatedFile = await db.get('SELECT * FROM files WHERE id = ?', id);
+    await saveDatabaseState();
     res.json(updatedFile);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -258,6 +260,7 @@ router.post('/bulk-trash', async (req: Request, res: Response) => {
         await db.run('UPDATE files SET is_trashed = 1 WHERE parent_folder_id = ?', folderId);
       }
     }
+    await saveDatabaseState();
     res.json({ message: 'Items trashed successfully' });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -280,6 +283,7 @@ router.post('/bulk-restore', async (req: Request, res: Response) => {
         await db.run('UPDATE files SET is_trashed = 0 WHERE parent_folder_id = ?', folderId);
       }
     }
+    await saveDatabaseState();
     res.json({ message: 'Items restored successfully' });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -313,6 +317,7 @@ router.post('/bulk-delete', async (req: Request, res: Response) => {
       const placeholders = folderIds.map(() => '?').join(',');
       await db.run(`DELETE FROM folders WHERE id IN (${placeholders})`, [...folderIds]);
     }
+    await saveDatabaseState();
     res.json({ message: 'Items deleted permanently' });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -335,6 +340,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
     }
 
     await db.run('DELETE FROM files WHERE id = ?', id);
+    await saveDatabaseState();
     res.json({ message: 'File deleted permanently' });
   } catch (err: any) {
     res.status(500).json({ error: err.message });

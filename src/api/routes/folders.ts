@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { getDb } from '../db.js';
+import { getDb, saveDatabaseState } from '../db.js';
 import { generateUUID } from '../utils/security.js';
 
 const router = Router();
@@ -52,6 +52,7 @@ router.post('/', async (req: Request, res: Response) => {
     );
 
     const folder = await db.get('SELECT * FROM folders WHERE id = ?', folderId);
+    await saveDatabaseState();
     res.status(201).json(folder);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -105,6 +106,7 @@ router.put('/:id', async (req: Request, res: Response) => {
 
     await db.run(query, params);
     const updatedFolder = await db.get('SELECT * FROM folders WHERE id = ?', id);
+    await saveDatabaseState();
     res.json(updatedFolder);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -122,6 +124,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
     }
 
     await db.run('DELETE FROM folders WHERE id = ?', id);
+    await saveDatabaseState();
     res.json({ message: 'Folder deleted permanently' });
   } catch (err: any) {
     res.status(500).json({ error: err.message });

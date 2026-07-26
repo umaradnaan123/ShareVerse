@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import bcrypt from 'bcryptjs';
-import { getDb } from '../db.js';
+import { getDb, saveDatabaseState } from '../db.js';
 import { generateUUID } from '../utils/security.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -125,6 +125,7 @@ router.get('/:id/download', async (req: Request, res: Response) => {
         [generateUUID(), file.id, new Date().toISOString(), ipAddress, userAgent, randomCountry]
       );
       await db.run('UPDATE files SET download_count = download_count + 1 WHERE id = ?', file.id);
+      await saveDatabaseState();
 
       const inline = req.query.inline === 'true';
       if (inline) {
@@ -158,6 +159,7 @@ router.get('/:id/download', async (req: Request, res: Response) => {
     );
 
     await db.run('UPDATE files SET download_count = download_count + 1 WHERE id = ?', file.id);
+    await saveDatabaseState();
 
     const inline = req.query.inline === 'true';
     if (inline) {

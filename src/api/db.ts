@@ -2,7 +2,6 @@ import sqlite3 from 'sqlite3';
 import { open, Database } from 'sqlite';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import bcrypt from 'bcryptjs';
 import fs from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -16,7 +15,42 @@ export async function initDb() {
     ? '/tmp/shareverse.db' 
     : path.join(__dirname, '../../database/shareverse.db');
 
-  if (!isServerless) {
+  if (isServerless && process.env.BLOB_READ_WRITE_TOKEN) {
+    try {
+      const dbDir = path.dirname(dbPath);
+      if (!fs.existsSync(dbDir)) {
+        fs.mkdirSync(dbDir, { recursive: true });
+      }
+
+      if (!fs.existsSync(dbPath)) {
+        console.log('Restoring SQLite database state from Vercel Blob...');
+        const { list } = await import('@vercel/blob');
+        const { blobs } = await list({ prefix: 'shareverse_db_' });
+        
+        if (blobs.length > 0) {
+          // Sort by upload date descending
+          blobs.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
+          const latestBlob = blobs[0];
+          console.log(`Downloading latest database backup from Vercel Blob: ${latestBlob.url}`);
+          
+          const fetch = (await import('node-fetch')).default;
+          const response = await fetch(latestBlob.url);
+          if (response.ok) {
+            const arrayBuffer = await response.arrayBuffer();
+            const buffer = Buffer.from(arrayBuffer);
+            fs.writeFileSync(dbPath, buffer);
+            console.log('SQLite Database state restored successfully.');
+          } else {
+            console.error('Failed to download database backup from URL:', latestBlob.url);
+          }
+        } else {
+          console.log('No database backup found in Vercel Blob. Starting fresh DB.');
+        }
+      }
+    } catch (err) {
+      console.error('Failed to restore database from Vercel Blob:', err);
+    }
+  } else if (!isServerless) {
     const dbDir = path.dirname(dbPath);
     if (!fs.existsSync(dbDir)) {
       fs.mkdirSync(dbDir, { recursive: true });
@@ -86,4 +120,41 @@ export function getDb() {
     throw new Error('Database not initialized. Call initDb() first.');
   }
   return db;
+}
+
+/**
+ * Backs up the SQLite database to Vercel Blob (Background sync).
+ */
+export async function saveDatabaseState() {
+  const isServerless = process.env.VERCEL === '1' || process.env.NODE_ENV === 'production';
+  if (!isServerless || !process.env.BLOB_READ_WRITE_TOKEN) return;
+
+  try {
+    const dbPath = '/tmp/shareverse.db';
+    if (!fs.existsSync(dbPath)) return;
+
+    const fileBuffer = fs.readFileSync(dbPath);
+    const { put, list, del } = await import('@vercel/blob');
+    
+    const newDbName = `shareverse_db_${Date.now()}.db`;
+    const blob = await put(newDbName, fileBuffer, {
+      contentType: 'application/x-sqlite3',
+      access: 'public',
+    });
+
+    console.log(`Database state successfully backed up to Vercel Blob: ${blob.url}`);
+
+    // Clean up older backups
+    const { blobs } = await list({ prefix: 'shareverse_db_' });
+    const oldBlobs = blobs
+      .filter(b => b.pathname !== newDbName)
+      .map(b => b.url);
+
+    if (oldBlobs.length > 0) {
+      await del(oldBlobs);
+      console.log(`Cleaned up ${oldBlobs.length} stale database backups.`);
+    }
+  } catch (err) {
+    console.error('Failed to backup database state to Vercel Blob:', err);
+  }
 }
