@@ -34,6 +34,47 @@ router.get('/', async (req: Request, res: Response) => {
   }
 });
 
+router.post('/ensure-path', async (req: Request, res: Response) => {
+  const { pathParts, rootParentFolderId } = req.body;
+
+  if (!Array.isArray(pathParts) || pathParts.length === 0) {
+    return res.status(400).json({ error: 'pathParts array is required' });
+  }
+
+  try {
+    const db = getDb();
+    let currentParentId = rootParentFolderId === 'root' ? null : (rootParentFolderId || null);
+
+    for (const name of pathParts) {
+      if (!name) continue;
+
+      let existing;
+      if (currentParentId === null) {
+        existing = await db.get('SELECT id FROM folders WHERE name = ? AND parent_folder_id IS NULL AND is_trashed = 0', [name]);
+      } else {
+        existing = await db.get('SELECT id FROM folders WHERE name = ? AND parent_folder_id = ? AND is_trashed = 0', [name, currentParentId]);
+      }
+
+      if (existing) {
+        currentParentId = existing.id;
+      } else {
+        const newFolderId = generateUUID();
+        const now = new Date().toISOString();
+        await db.run(
+          'INSERT INTO folders (id, name, parent_folder_id, created_at) VALUES (?, ?, ?, ?)',
+          [newFolderId, name, currentParentId, now]
+        );
+        currentParentId = newFolderId;
+      }
+    }
+
+    await saveDatabaseState();
+    res.json({ folderId: currentParentId });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.post('/', async (req: Request, res: Response) => {
   const { name, parentFolderId } = req.body;
 

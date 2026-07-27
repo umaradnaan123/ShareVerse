@@ -22,20 +22,65 @@ export default function UploadZone({ currentFolderId }: UploadZoneProps) {
     }
   };
 
-  const handleDrop = (e: React.DragEvent) => {
+  const processFilesWithFolders = async (files: File[]) => {
+    const folderGroups: Map<string, File[]> = new Map();
+    const rootFiles: File[] = [];
+
+    for (const file of files) {
+      const relPath = (file as any).webkitRelativePath || '';
+      if (relPath && relPath.includes('/')) {
+        const parts = relPath.split('/');
+        parts.pop(); // remove file name
+        const dirPathKey = parts.join('/');
+        if (!folderGroups.has(dirPathKey)) {
+          folderGroups.set(dirPathKey, []);
+        }
+        folderGroups.get(dirPathKey)!.push(file);
+      } else {
+        rootFiles.push(file);
+      }
+    }
+
+    if (rootFiles.length > 0) {
+      addUploadTasks(rootFiles, currentFolderId);
+    }
+
+    for (const [dirPathKey, groupFiles] of folderGroups.entries()) {
+      try {
+        const pathParts = dirPathKey.split('/');
+        const res = await fetch('/api/folders/ensure-path', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pathParts, rootParentFolderId: currentFolderId })
+        });
+
+        if (res.ok) {
+          const { folderId } = await res.json();
+          addUploadTasks(groupFiles, folderId);
+        } else {
+          addUploadTasks(groupFiles, currentFolderId);
+        }
+      } catch (err) {
+        addUploadTasks(groupFiles, currentFolderId);
+      }
+    }
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setIsDragActive(false);
 
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       const filesArray = Array.from(e.dataTransfer.files);
-      addUploadTasks(filesArray, currentFolderId);
+      await processFilesWithFolders(filesArray);
     }
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      addUploadTasks(Array.from(e.target.files), currentFolderId);
+      const filesArray = Array.from(e.target.files);
+      await processFilesWithFolders(filesArray);
     }
   };
 

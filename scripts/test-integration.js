@@ -131,6 +131,31 @@ async function runTests() {
       throw new Error(`Expected status 410, got ${dl3.status}`);
     }
 
+    // 7. Test Analytics Retrieval Endpoint
+    console.log('\n--- Test 7: Retrieving File Analytics ---');
+    const analyticsRes = await fetch(`${baseUrl}/api/files/${resolvedFileId}/analytics`);
+    if (!analyticsRes.ok) {
+      throw new Error(`Analytics retrieval failed with status: ${analyticsRes.status}`);
+    }
+    const analyticsJson = await analyticsRes.json();
+    console.log(`✅ Analytics retrieved. Total Downloads: ${analyticsJson.totalDownloads}, Logs count: ${analyticsJson.downloads.length}`);
+
+    // 8. Test Recursive Folder Tree Creation
+    console.log('\n--- Test 8: Folder Tree Hierarchy Creation ---');
+    const folderRes = await fetch(`${baseUrl}/api/folders/ensure-path`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        pathParts: ['documents', 'contracts', '2026'],
+        rootParentFolderId: 'root'
+      })
+    });
+    if (!folderRes.ok) {
+      throw new Error(`Folder path creation failed with status: ${folderRes.status}`);
+    }
+    const folderJson = await folderRes.json();
+    console.log(`✅ Nested Folder Tree created. Final Folder ID: ${folderJson.folderId}`);
+
     console.log('\n🏆 All integration tests passed successfully!');
   } catch (err) {
     console.error('\n❌ Test Suite Failed:', err.message);

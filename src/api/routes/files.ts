@@ -329,6 +329,43 @@ router.post('/bulk-delete', async (req: Request, res: Response) => {
   }
 });
 
+router.get('/:id/analytics', async (req: Request, res: Response) => {
+  const { id } = req.params;
+
+  try {
+    const db = getDb();
+    let file = await db.get('SELECT id, name, size, mime_type, download_count, created_at FROM files WHERE id = ?', id);
+    if (!file && id.startsWith('sv1_')) {
+      file = { id, name: 'Shared Asset', size: 0, mime_type: 'application/octet-stream', download_count: 0, created_at: new Date().toISOString() };
+    }
+
+    if (!file) {
+      return res.status(404).json({ error: 'File not found' });
+    }
+
+    const downloads = await db.all(
+      'SELECT id, downloaded_at, ip_address, user_agent, country FROM downloads WHERE file_id = ? ORDER BY downloaded_at DESC LIMIT 50',
+      id
+    );
+
+    // Compute country breakdown
+    const countryCounts: Record<string, number> = {};
+    for (const d of downloads) {
+      const c = d.country || 'Unknown';
+      countryCounts[c] = (countryCounts[c] || 0) + 1;
+    }
+
+    res.json({
+      file,
+      totalDownloads: file.download_count || downloads.length,
+      downloads,
+      countryCounts
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.delete('/:id', async (req: Request, res: Response) => {
   const { id } = req.params;
 

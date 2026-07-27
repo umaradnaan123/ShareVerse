@@ -17,7 +17,13 @@ import {
   RefreshCw,
   HardDrive,
   CheckSquare,
-  Square
+  Square,
+  Edit3,
+  BarChart2,
+  X,
+  Globe,
+  Clock,
+  Eye
 } from 'lucide-react';
 
 interface FileItem {
@@ -58,6 +64,20 @@ export default function Dashboard() {
   const [showCreateFolder, setShowCreateFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [activeShareFile, setActiveShareFile] = useState<FileItem | null>(null);
+
+  // Rename modal state
+  const [renameTarget, setRenameTarget] = useState<{ type: 'file' | 'folder'; id: string; currentName: string } | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+
+  // Analytics modal state
+  const [analyticsFile, setAnalyticsFile] = useState<FileItem | null>(null);
+  const [analyticsData, setAnalyticsData] = useState<{
+    file: any;
+    totalDownloads: number;
+    downloads: any[];
+    countryCounts: Record<string, number>;
+  } | null>(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
 
   const [selectedFileIds, setSelectedFileIds] = useState<string[]>([]);
   const [selectedFolderIds, setSelectedFolderIds] = useState<string[]>([]);
@@ -133,9 +153,7 @@ export default function Dashboard() {
     try {
       const response = await fetch('/api/folders', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: newFolderName,
           parentFolderId: currentFolderId === 'root' ? null : currentFolderId
@@ -156,9 +174,7 @@ export default function Dashboard() {
     try {
       const res = await fetch(`/api/files/${fileId}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates)
       });
       if (res.ok) fetchContents();
@@ -171,14 +187,45 @@ export default function Dashboard() {
     try {
       const res = await fetch(`/api/folders/${folderId}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates)
       });
       if (res.ok) fetchContents();
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const openRenameModal = (type: 'file' | 'folder', id: string, name: string) => {
+    setRenameTarget({ type, id, currentName: name });
+    setRenameValue(name);
+  };
+
+  const handleRenameSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!renameTarget || !renameValue.trim()) return;
+
+    if (renameTarget.type === 'file') {
+      await handleUpdateFile(renameTarget.id, { name: renameValue.trim() });
+    } else {
+      await handleUpdateFolder(renameTarget.id, { name: renameValue.trim() });
+    }
+    setRenameTarget(null);
+  };
+
+  const fetchAnalytics = async (file: FileItem) => {
+    setAnalyticsFile(file);
+    setAnalyticsLoading(true);
+    try {
+      const res = await fetch(`/api/files/${file.id}/analytics`);
+      if (res.ok) {
+        const data = await res.json();
+        setAnalyticsData(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch analytics:', err);
+    } finally {
+      setAnalyticsLoading(false);
     }
   };
 
@@ -194,9 +241,7 @@ export default function Dashboard() {
     try {
       await fetch('/api/files/bulk-trash', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ fileIds: selectedFileIds, folderIds: selectedFolderIds })
       });
       setSelectedFileIds([]);
@@ -211,9 +256,7 @@ export default function Dashboard() {
     try {
       await fetch('/api/files/bulk-restore', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ fileIds: selectedFileIds, folderIds: selectedFolderIds })
       });
       setSelectedFileIds([]);
@@ -229,9 +272,7 @@ export default function Dashboard() {
     try {
       await fetch('/api/files/bulk-delete', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ fileIds: selectedFileIds, folderIds: selectedFolderIds })
       });
       setSelectedFileIds([]);
@@ -271,8 +312,8 @@ export default function Dashboard() {
   const storagePercent = Math.min((totalUsedSize / storageCap) * 100, 100);
 
   return (
-    <div className="bg-neutral-50 dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 flex-1 min-h-[calc(100vh-16rem)] flex flex-col md:flex-row">
-      <aside className="w-full md:w-64 bg-white dark:bg-neutral-950 border-r border-neutral-200/50 dark:border-neutral-800/50 p-6 flex flex-col justify-between shrink-0">
+    <div className="bg-neutral-50 dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 flex-1 min-h-[calc(100vh-16rem)] flex flex-col md:flex-row animate-fade-in">
+      <aside className="w-full md:w-64 bg-white dark:bg-neutral-955 border-r border-neutral-200/50 dark:border-neutral-800/50 p-6 flex flex-col justify-between shrink-0">
         <div className="space-y-6">
           <div className="space-y-1">
             <button
@@ -345,12 +386,12 @@ export default function Dashboard() {
               placeholder="Search in folder..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-white dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl outline-none focus:border-brand-500 text-sm text-neutral-800 dark:text-neutral-100"
+              className="w-full pl-10 pr-4 py-2 bg-white dark:bg-neutral-955 border border-neutral-200 dark:border-neutral-800 rounded-xl outline-none focus:border-brand-500 text-sm text-neutral-800 dark:text-neutral-100"
             />
           </div>
 
           <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
-            <div className="flex bg-white dark:bg-neutral-950 p-1 border border-neutral-200 dark:border-neutral-800 rounded-xl">
+            <div className="flex bg-white dark:bg-neutral-955 p-1 border border-neutral-200 dark:border-neutral-800 rounded-xl">
               <button
                 onClick={() => setViewMode('grid')}
                 className={`p-1.5 rounded-lg transition-colors ${viewMode === 'grid' ? 'bg-neutral-100 dark:bg-neutral-900 text-brand-500' : 'text-neutral-400'}`}
@@ -406,7 +447,7 @@ export default function Dashboard() {
                   </button>
                   <button
                     onClick={handleBulkDelete}
-                    className="px-3 py-1.5 text-xs font-semibold bg-red-500 text-white rounded-lg hover:bg-red-650 transition-colors"
+                    className="px-3 py-1.5 text-xs font-semibold bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
                   >
                     Delete Permanently
                   </button>
@@ -415,7 +456,7 @@ export default function Dashboard() {
                 <>
                   <button
                     onClick={handleBulkDownload}
-                    className="px-3 py-1.5 text-xs font-semibold bg-brand-500 text-white rounded-lg hover:bg-brand-650 transition-colors flex items-center gap-1"
+                    className="px-3 py-1.5 text-xs font-semibold bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition-colors flex items-center gap-1"
                   >
                     <Download className="h-3.5 w-3.5" />
                     <span>Download</span>
@@ -437,9 +478,9 @@ export default function Dashboard() {
             <RefreshCw className="h-8 w-8 text-brand-500 animate-spin" />
           </div>
         ) : (
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto space-y-8">
             {filteredFolders.length > 0 && (
-              <div className="mb-8">
+              <div>
                 <h3 className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-4">Folders</h3>
                 <div className={`grid ${viewMode === 'grid' ? 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4' : 'grid-cols-1'} gap-4`}>
                   {filteredFolders.map((folder) => {
@@ -448,14 +489,14 @@ export default function Dashboard() {
                       <div
                         key={folder.id}
                         onClick={() => handleOpenFolder(folder)}
-                        className={`group p-4 bg-white dark:bg-neutral-950 border rounded-2xl flex items-center justify-between cursor-pointer hover:border-brand-500/50 shadow-sm relative ${
+                        className={`group p-4 bg-white dark:bg-neutral-955 border rounded-2xl flex items-center justify-between cursor-pointer hover:border-brand-500/50 shadow-sm relative ${
                           isSelected ? 'border-brand-500 ring-1 ring-brand-500' : 'border-neutral-200 dark:border-neutral-800'
                         }`}
                       >
-                        <div className="flex items-center gap-3 truncate w-[75%]">
+                        <div className="flex items-center gap-3 truncate w-[70%]">
                           <button
                             onClick={(e) => { e.stopPropagation(); toggleSelectFolder(folder.id); }}
-                            className="text-neutral-400 hover:text-brand-500"
+                            className="text-neutral-400 hover:text-brand-500 shrink-0"
                           >
                             {isSelected ? <CheckSquare className="h-4.5 w-4.5 text-brand-500" /> : <Square className="h-4.5 w-4.5" />}
                           </button>
@@ -465,7 +506,17 @@ export default function Dashboard() {
                           </span>
                         </div>
 
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openRenameModal('folder', folder.id, folder.name);
+                            }}
+                            className="p-1 rounded hover:bg-neutral-100 dark:hover:bg-neutral-900 text-neutral-400 hover:text-brand-500"
+                            title="Rename Folder"
+                          >
+                            <Edit3 className="h-4 w-4" />
+                          </button>
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -505,7 +556,7 @@ export default function Dashboard() {
                     return (
                       <div
                         key={file.id}
-                        className={`group p-4 bg-white dark:bg-neutral-950 border rounded-2xl flex flex-col justify-between shadow-sm relative hover:border-brand-500/50 ${
+                        className={`group p-4 bg-white dark:bg-neutral-955 border rounded-2xl flex flex-col justify-between shadow-sm relative hover:border-brand-500/50 ${
                           isSelected ? 'border-brand-500 ring-1 ring-brand-500' : 'border-neutral-200 dark:border-neutral-800'
                         }`}
                       >
@@ -541,7 +592,7 @@ export default function Dashboard() {
                         <div className="flex items-center justify-between text-xs text-neutral-400 dark:text-neutral-500 pt-2 border-t border-neutral-100 dark:border-neutral-900">
                           <span>{formatSize(file.size)}</span>
                           
-                          <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                             {currentTab === 'trash' ? (
                               <button
                                 onClick={() => handleUpdateFile(file.id, { isTrashed: 0 })}
@@ -552,6 +603,20 @@ export default function Dashboard() {
                             ) : (
                               <>
                                 <button
+                                  onClick={() => openRenameModal('file', file.id, file.name)}
+                                  className="p-1 hover:bg-neutral-100 dark:hover:bg-neutral-900 rounded text-neutral-400 hover:text-brand-500"
+                                  title="Rename File"
+                                >
+                                  <Edit3 className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => fetchAnalytics(file)}
+                                  className="p-1 hover:bg-neutral-100 dark:hover:bg-neutral-900 rounded text-purple-500"
+                                  title="View Analytics"
+                                >
+                                  <BarChart2 className="h-3.5 w-3.5" />
+                                </button>
+                                <button
                                   onClick={() => setActiveShareFile(file)}
                                   className="p-1 hover:bg-neutral-100 dark:hover:bg-neutral-900 rounded text-brand-500"
                                   title="Share Settings"
@@ -560,8 +625,8 @@ export default function Dashboard() {
                                 </button>
                                 <a
                                   href={`/api/shares/${file.id}/download`}
-                                  className="p-1 hover:bg-neutral-100 dark:hover:bg-neutral-900 rounded text-green-500"
-                                  title="Download"
+                                  className="p-1 hover:bg-neutral-100 dark:hover:bg-neutral-900 rounded text-emerald-500"
+                                  title="Download File"
                                 >
                                   <Download className="h-3.5 w-3.5" />
                                 </a>
@@ -600,10 +665,11 @@ export default function Dashboard() {
         )}
       </main>
 
+      {/* Create Folder Modal */}
       {showCreateFolder && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <form onSubmit={handleCreateFolder} className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl p-6 w-full max-w-sm shadow-2xl animate-fade-in">
-            <h3 className="text-lg font-bold mb-4">Create New Folder</h3>
+            <h3 className="text-lg font-bold mb-4 text-neutral-900 dark:text-white">Create New Folder</h3>
             <input
               type="text"
               required
@@ -611,13 +677,13 @@ export default function Dashboard() {
               placeholder="Folder Name"
               value={newFolderName}
               onChange={(e) => setNewFolderName(e.target.value)}
-              className="w-full px-4 py-2.5 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl outline-none focus:border-brand-500 text-sm mb-4"
+              className="w-full px-4 py-2.5 bg-neutral-50 dark:bg-neutral-955 border border-neutral-200 dark:border-neutral-800 rounded-xl outline-none focus:border-brand-500 text-sm mb-4"
             />
             <div className="flex gap-2 justify-end text-sm font-semibold">
               <button
                 type="button"
                 onClick={() => { setShowCreateFolder(false); setNewFolderName(''); }}
-                className="px-4 py-2 bg-neutral-100 dark:bg-neutral-850 hover:bg-neutral-200 rounded-xl"
+                className="px-4 py-2 bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 rounded-xl"
               >
                 Cancel
               </button>
@@ -629,6 +695,118 @@ export default function Dashboard() {
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* Inline Rename Modal */}
+      {renameTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <form onSubmit={handleRenameSubmit} className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl p-6 w-full max-w-sm shadow-2xl animate-fade-in">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-bold text-neutral-900 dark:text-white">
+                Rename {renameTarget.type === 'file' ? 'File' : 'Folder'}
+              </h3>
+              <button type="button" onClick={() => setRenameTarget(null)} className="text-neutral-400 hover:text-neutral-200">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <input
+              type="text"
+              required
+              autoFocus
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              className="w-full px-4 py-2.5 bg-neutral-50 dark:bg-neutral-955 border border-neutral-200 dark:border-neutral-800 rounded-xl outline-none focus:border-brand-500 text-sm mb-4"
+            />
+            <div className="flex gap-2 justify-end text-sm font-semibold">
+              <button
+                type="button"
+                onClick={() => setRenameTarget(null)}
+                className="px-4 py-2 bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 rounded-xl"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-xl"
+              >
+                Save
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Analytics Modal */}
+      {analyticsFile && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-neutral-955 border border-neutral-200 dark:border-neutral-800 rounded-3xl p-6 w-full max-w-lg shadow-2xl animate-fade-in space-y-6">
+            <div className="flex justify-between items-center border-b border-neutral-100 dark:border-neutral-900 pb-4">
+              <div className="flex items-center gap-2">
+                <BarChart2 className="h-5 w-5 text-purple-500" />
+                <h3 className="text-lg font-bold text-neutral-900 dark:text-white truncate max-w-xs">
+                  Analytics: {analyticsFile.name}
+                </h3>
+              </div>
+              <button onClick={() => { setAnalyticsFile(null); setAnalyticsData(null); }} className="text-neutral-400 hover:text-neutral-200">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {analyticsLoading ? (
+              <div className="py-12 text-center">
+                <RefreshCw className="h-8 w-8 text-brand-500 animate-spin mx-auto mb-2" />
+                <p className="text-sm text-neutral-500">Loading analytics metrics...</p>
+              </div>
+            ) : analyticsData ? (
+              <div className="space-y-6">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="p-4 bg-neutral-50 dark:bg-neutral-900 rounded-2xl text-center">
+                    <div className="text-3xl font-extrabold text-brand-500">{analyticsData.totalDownloads}</div>
+                    <div className="text-xs font-semibold text-neutral-500 uppercase mt-1">Total Downloads</div>
+                  </div>
+                  <div className="p-4 bg-neutral-50 dark:bg-neutral-900 rounded-2xl text-center">
+                    <div className="text-3xl font-extrabold text-purple-500">{Object.keys(analyticsData.countryCounts).length}</div>
+                    <div className="text-xs font-semibold text-neutral-500 uppercase mt-1">Countries</div>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400 flex items-center gap-1.5">
+                    <Clock className="h-4 w-4 text-brand-500" />
+                    <span>Recent Downloads Log</span>
+                  </h4>
+                  {analyticsData.downloads.length > 0 ? (
+                    <div className="max-h-48 overflow-y-auto space-y-2 pr-1">
+                      {analyticsData.downloads.map((log) => (
+                        <div key={log.id} className="p-3 bg-neutral-50 dark:bg-neutral-900 rounded-xl text-xs flex items-center justify-between">
+                          <div className="space-y-0.5">
+                            <span className="font-semibold text-neutral-800 dark:text-neutral-200">{log.ip_address}</span>
+                            <div className="text-neutral-400 text-[10px] truncate max-w-xs">{log.user_agent}</div>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <span className="inline-block px-2 py-0.5 bg-brand-500/10 text-brand-500 font-bold rounded text-[10px] mb-0.5">{log.country}</span>
+                            <div className="text-neutral-400 text-[10px]">{new Date(log.downloaded_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-neutral-500 text-center py-4">No download records yet.</p>
+                  )}
+                </div>
+              </div>
+            ) : null}
+
+            <div className="text-right">
+              <button
+                onClick={() => { setAnalyticsFile(null); setAnalyticsData(null); }}
+                className="px-4 py-2 bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 text-sm font-semibold rounded-xl"
+              >
+                Close
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
