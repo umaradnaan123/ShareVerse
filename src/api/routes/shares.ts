@@ -89,6 +89,58 @@ router.post('/:id/verify-password', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * Ensures parent file record exists in SQLite and records download analytics safely inside a transaction.
+ */
+async function recordDownloadSafely(db: any, file: any, ipAddress: string, userAgent: string) {
+  try {
+    await db.run('BEGIN TRANSACTION');
+
+    // 1. Ensure parent file record exists in files table before inserting into downloads
+    const existing = await db.get('SELECT id FROM files WHERE id = ?', file.id);
+    if (!existing) {
+      await db.run(
+        `INSERT INTO files (id, name, size, mime_type, path, parent_folder_id, is_public, password_hash, expires_at, download_limit, download_count, is_starred, is_trashed, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          file.id,
+          file.name,
+          file.size,
+          file.mime_type,
+          file.path,
+          file.parent_folder_id || null,
+          file.is_public ?? 1,
+          file.password_hash || null,
+          file.expires_at || null,
+          file.download_limit || null,
+          file.download_count || 0,
+          file.is_starred || 0,
+          file.is_trashed || 0,
+          file.created_at || new Date().toISOString()
+        ]
+      );
+    }
+
+    // 2. Insert downloads tracking log with random sample country
+    const countries = ['United States', 'United Kingdom', 'Canada', 'Germany', 'France', 'India', 'Japan', 'Australia'];
+    const randomCountry = countries[Math.floor(Math.random() * countries.length)];
+
+    await db.run(
+      'INSERT INTO downloads (id, file_id, downloaded_at, ip_address, user_agent, country) VALUES (?, ?, ?, ?, ?, ?)',
+      [generateUUID(), file.id, new Date().toISOString(), ipAddress, userAgent, randomCountry]
+    );
+
+    // 3. Increment download counter
+    await db.run('UPDATE files SET download_count = download_count + 1 WHERE id = ?', file.id);
+
+    await db.run('COMMIT');
+    await saveDatabaseState();
+  } catch (err) {
+    await db.run('ROLLBACK').catch(() => {});
+    console.error('[DOWNLOAD] Analytics recording safely handled without failing request:', err);
+  }
+}
+
 router.get('/:id/download', async (req: Request, res: Response) => {
   const { id } = req.params;
   const { password } = req.query;
@@ -99,17 +151,6 @@ router.get('/:id/download', async (req: Request, res: Response) => {
 
     if (!file && id.startsWith('sv1_')) {
       file = decodeShareToken(id);
-      if (file) {
-        try {
-          await db.run(
-            `INSERT OR IGNORE INTO files (id, name, size, mime_type, path, parent_folder_id, created_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [file.id, file.name, file.size, file.mime_type, file.path, null, file.created_at]
-          );
-        } catch (e) {
-          // ignore cache auto-heal errors
-        }
-      }
     }
 
     if (!file) {
@@ -131,18 +172,11 @@ router.get('/:id/download', async (req: Request, res: Response) => {
       }
     }
 
-    if (file.path.startsWith('data:')) {
-      const userAgent = req.headers['user-agent'] || 'Unknown';
-      const ipAddress = req.ip || req.socket.remoteAddress || '127.0.0.1';
-      const countries = ['United States', 'United Kingdom', 'Canada', 'Germany', 'France', 'India', 'Japan', 'Australia'];
-      const randomCountry = countries[Math.floor(Math.random() * countries.length)];
+    const userAgent = req.headers['user-agent'] || 'Unknown';
+    const ipAddress = req.ip || req.socket.remoteAddress || '127.0.0.1';
 
-      await db.run(
-        'INSERT INTO downloads (id, file_id, downloaded_at, ip_address, user_agent, country) VALUES (?, ?, ?, ?, ?, ?)',
-        [generateUUID(), file.id, new Date().toISOString(), ipAddress, userAgent, randomCountry]
-      );
-      await db.run('UPDATE files SET download_count = download_count + 1 WHERE id = ?', file.id);
-      await saveDatabaseState();
+    if (file.path.startsWith('data:')) {
+      await recordDownloadSafely(db, file, ipAddress, userAgent);
 
       const commaIndex = file.path.indexOf(',');
       const base64Data = file.path.substring(commaIndex + 1);
@@ -169,17 +203,7 @@ router.get('/:id/download', async (req: Request, res: Response) => {
         return res.status(404).json({ error: 'Physical file not found on cloud storage server.' });
       }
 
-      const userAgent = req.headers['user-agent'] || 'Unknown';
-      const ipAddress = req.ip || req.socket.remoteAddress || '127.0.0.1';
-      const countries = ['United States', 'United Kingdom', 'Canada', 'Germany', 'France', 'India', 'Japan', 'Australia'];
-      const randomCountry = countries[Math.floor(Math.random() * countries.length)];
-
-      await db.run(
-        'INSERT INTO downloads (id, file_id, downloaded_at, ip_address, user_agent, country) VALUES (?, ?, ?, ?, ?, ?)',
-        [generateUUID(), file.id, new Date().toISOString(), ipAddress, userAgent, randomCountry]
-      );
-      await db.run('UPDATE files SET download_count = download_count + 1 WHERE id = ?', file.id);
-      await saveDatabaseState();
+      await recordDownloadSafely(db, file, ipAddress, userAgent);
 
       const arrayBuffer = await downloadResponse.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
@@ -202,19 +226,7 @@ router.get('/:id/download', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Physical file not found on storage server.' });
     }
 
-    const userAgent = req.headers['user-agent'] || 'Unknown';
-    const ipAddress = req.ip || req.socket.remoteAddress || '127.0.0.1';
-    
-    const countries = ['United States', 'United Kingdom', 'Canada', 'Germany', 'France', 'India', 'Japan', 'Australia'];
-    const randomCountry = countries[Math.floor(Math.random() * countries.length)];
-
-    await db.run(
-      'INSERT INTO downloads (id, file_id, downloaded_at, ip_address, user_agent, country) VALUES (?, ?, ?, ?, ?, ?)',
-      [generateUUID(), file.id, new Date().toISOString(), ipAddress, userAgent, randomCountry]
-    );
-
-    await db.run('UPDATE files SET download_count = download_count + 1 WHERE id = ?', file.id);
-    await saveDatabaseState();
+    await recordDownloadSafely(db, file, ipAddress, userAgent);
 
     const inline = req.query.inline === 'true';
     if (inline) {
