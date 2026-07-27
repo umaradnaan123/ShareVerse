@@ -264,12 +264,12 @@ export default function ShareView() {
   const mime = file.mime_type.toLowerCase();
   const nameLower = file.name.toLowerCase();
 
-  const isImage = mime.startsWith('image/');
-  const isVideo = mime.startsWith('video/');
-  const isAudio = mime.startsWith('audio/');
-  const isPdf = mime === 'application/pdf';
+  const isImage = mime.startsWith('image/') || nameLower.endsWith('.jpg') || nameLower.endsWith('.jpeg') || nameLower.endsWith('.png') || nameLower.endsWith('.gif') || nameLower.endsWith('.webp') || nameLower.endsWith('.svg');
+  const isVideo = mime.startsWith('video/') || nameLower.endsWith('.mp4') || nameLower.endsWith('.webm') || nameLower.endsWith('.mov') || nameLower.endsWith('.avi') || nameLower.endsWith('.mkv');
+  const isAudio = mime.startsWith('audio/') || nameLower.endsWith('.mp3') || nameLower.endsWith('.wav') || nameLower.endsWith('.ogg') || nameLower.endsWith('.m4a') || nameLower.endsWith('.flac');
+  const isPdf = mime === 'application/pdf' || nameLower.endsWith('.pdf');
   const isOffice = nameLower.endsWith('.docx') || nameLower.endsWith('.xlsx') || nameLower.endsWith('.pptx');
-  const isText = mime.startsWith('text/') || mime.includes('json') || mime.includes('javascript') || mime.includes('xml') || nameLower.endsWith('.md') || nameLower.endsWith('.ts') || nameLower.endsWith('.yaml') || nameLower.endsWith('.yml');
+  const isText = mime.startsWith('text/') || mime.includes('json') || mime.includes('javascript') || mime.includes('xml') || nameLower.endsWith('.md') || nameLower.endsWith('.ts') || nameLower.endsWith('.js') || nameLower.endsWith('.txt') || nameLower.endsWith('.yaml') || nameLower.endsWith('.yml');
   const isCsv = nameLower.endsWith('.csv') || mime.includes('csv');
 
   const imageSrc = blobObjectUrl || previewUrl;
@@ -384,11 +384,13 @@ export default function ShareView() {
             )}
 
             {previewFailed ? (
-              <div className="text-center p-8 max-w-md">
-                <AlertTriangle className="h-14 w-14 text-amber-500 mx-auto mb-4 animate-bounce" />
-                <h3 className="text-base font-bold text-neutral-800 dark:text-neutral-100 mb-1">Preview Unavailable</h3>
-                <p className="text-sm text-neutral-500 dark:text-neutral-400 mb-6 leading-relaxed">
-                  The file content could not be previewed directly in the browser. You can download the file directly below.
+              <div className="text-center p-8 max-w-md space-y-3">
+                <div className="p-4 bg-brand-500/10 text-brand-500 rounded-2xl inline-block mb-2">
+                  <FileText className="h-10 w-10" />
+                </div>
+                <h3 className="text-base font-bold text-neutral-900 dark:text-white">Preview unavailable for this file type</h3>
+                <p className="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
+                  You can still download the file safely below.
                 </p>
                 <a 
                   href={downloadUrl} 
@@ -469,10 +471,14 @@ export default function ShareView() {
                 <pre>{previewContent}</pre>
               </div>
             ) : (
-              <div className="text-center p-8 text-neutral-450 dark:text-neutral-550 max-w-sm">
-                <FileText className="h-12 w-12 mx-auto mb-4 text-brand-500/80" />
-                <p className="text-sm font-semibold mb-1 text-neutral-700 dark:text-neutral-300">Direct preview unavailable</p>
-                <p className="text-xs mb-6">This file format is not supported for inline browser rendering.</p>
+              <div className="text-center p-8 text-neutral-500 dark:text-neutral-400 max-w-sm space-y-3">
+                <div className="p-4 bg-brand-500/10 text-brand-500 rounded-2xl inline-block mb-2">
+                  <FileText className="h-10 w-10" />
+                </div>
+                <h3 className="text-base font-bold text-neutral-900 dark:text-white">Preview unavailable for this file type</h3>
+                <p className="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
+                  You can still download the file safely below.
+                </p>
                 <a 
                   href={downloadUrl} 
                   className="inline-flex items-center gap-2 px-5 py-2.5 bg-brand-500 hover:bg-brand-600 text-white font-semibold rounded-xl text-xs transition-colors shadow-md shadow-brand-500/10"

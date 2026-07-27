@@ -4,7 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { getDb, saveDatabaseState } from '../db.js';
-import { generateShortId, generateUUID, createShareToken } from '../utils/security.js';
+import { generateShortId, generateUUID, createShareToken, detectMimeType } from '../utils/security.js';
 import bcrypt from 'bcryptjs';
 import { uploadToStorage } from '../utils/storage.js';
 
@@ -131,8 +131,10 @@ router.post('/upload/chunk', upload.single('chunk'), async (req: Request, res: R
 
       cleanTempFolderAsync(fileFolder);
 
+      const resolvedMimeType = detectMimeType(fileName, mimeType);
+
       // Upload merged file output to persistent storage
-      const storageResult = await uploadToStorage(finalFilePath, fileName, mimeType || 'application/octet-stream');
+      const storageResult = await uploadToStorage(finalFilePath, fileName, resolvedMimeType);
       
       // Clean up the local combined file if running serverless/cloud to prevent disk leaks
       try {
@@ -145,7 +147,7 @@ router.post('/upload/chunk', upload.single('chunk'), async (req: Request, res: R
       const newFileId = createShareToken({
         name: fileName,
         size: size,
-        mimeType: mimeType || 'application/octet-stream',
+        mimeType: resolvedMimeType,
         path: storageResult.path
       });
       const now = new Date().toISOString();
@@ -157,8 +159,8 @@ router.post('/upload/chunk', upload.single('chunk'), async (req: Request, res: R
           newFileId,
           fileName,
           size,
-          mimeType || 'application/octet-stream',
-          storageResult.path, // Save the cloud storage url or local file identifier
+          resolvedMimeType,
+          storageResult.path,
           parentFolderId === 'root' || !parentFolderId ? null : parentFolderId,
           now
         ]

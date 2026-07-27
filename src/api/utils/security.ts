@@ -90,9 +90,46 @@ export function decodeShareToken(token: string): any | null {
       download_count: 0,
       is_starred: 0,
       is_trashed: 0,
-      created_at: payload.c || new Date().toISOString()
     };
   } catch (err) {
     return null;
   }
+}
+
+/**
+ * Infers accurate MIME type from filename extension if providedMime is missing or application/octet-stream.
+ */
+export function detectMimeType(fileName: string, providedMime?: string): string {
+  if (providedMime && providedMime !== 'application/octet-stream' && providedMime.includes('/')) {
+    return providedMime;
+  }
+  const ext = fileName.split('.').pop()?.toLowerCase() || '';
+  const map: Record<string, string> = {
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    png: 'image/png',
+    gif: 'image/gif',
+    webp: 'image/webp',
+    svg: 'image/svg+xml',
+    pdf: 'application/pdf',
+    mp4: 'video/mp4',
+    webm: 'video/webm',
+    mov: 'video/quicktime',
+    avi: 'video/x-msvideo',
+    mp3: 'audio/mpeg',
+    wav: 'audio/wav',
+    ogg: 'audio/ogg',
+    txt: 'text/plain',
+    json: 'application/json',
+    html: 'text/html',
+    css: 'text/css',
+    js: 'text/javascript',
+    ts: 'text/javascript',
+    md: 'text/markdown',
+    csv: 'text/csv',
+    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+  };
+  return map[ext] || providedMime || 'application/octet-stream';
 }
