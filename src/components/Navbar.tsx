@@ -21,23 +21,27 @@ export default function Navbar() {
     setTheme(prev => prev === 'dark' ? 'light' : 'dark');
   };
 
-  const isLinkActive = (path: string) => location.pathname === path;
+  const isLinkActive = (path: string) => {
+    if (path === '/') return location.pathname === '/';
+    return location.pathname.startsWith(path);
+  };
 
   const navLinks = [
     { name: 'Home', path: '/' },
-    { name: 'Upload', path: '/dashboard' },
+    { name: 'Upload', path: '/upload' },
     { name: 'Features', path: '/features' },
     { name: 'Security', path: '/security' },
+    { name: 'Help', path: '/help' },
     { name: 'FAQ', path: '/faq' },
     { name: 'Blog', path: '/blog' },
   ];
 
   return (
-    <nav className="sticky top-0 z-40 w-full glass-panel border-b border-neutral-200/40 dark:border-neutral-800/40">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <header className="sticky top-0 z-40 w-full glass-panel border-b border-neutral-200/40 dark:border-neutral-800/40">
+      <nav aria-label="Main Navigation" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16 items-center">
           <div className="flex items-center">
-            <Link to="/" className="flex items-center gap-2 text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">
+            <Link to="/" className="flex items-center gap-2 text-2xl font-bold tracking-tight text-neutral-900 dark:text-white" aria-label="ShareVerse Home">
               <HardDrive className="h-6 w-6 text-brand-500 animate-pulse" />
               <span>Share<span className="text-brand-500">Verse</span></span>
             </Link>
@@ -50,7 +54,7 @@ export default function Navbar() {
                 to={link.path}
                 className={`text-sm font-medium transition-colors ${
                   isLinkActive(link.path)
-                    ? 'text-brand-500'
+                    ? 'text-brand-500 font-bold'
                     : 'text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white'
                 }`}
               >
@@ -63,16 +67,16 @@ export default function Navbar() {
             <button
               onClick={toggleTheme}
               className="p-2 rounded-lg text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
-              aria-label="Toggle Theme"
+              aria-label="Toggle Color Theme"
             >
               {theme === 'dark' ? <Sun className="h-5 w-5 text-yellow-500" /> : <Moon className="h-5 w-5 text-neutral-600" />}
             </button>
 
             <Link
               to="/dashboard"
-              className="px-4 py-2 text-sm font-medium text-white bg-brand-500 rounded-lg hover:bg-brand-600 transition-colors shadow-md shadow-brand-500/20"
+              className="px-4 py-2 text-sm font-semibold text-white bg-brand-500 rounded-xl hover:bg-brand-600 transition-colors shadow-md shadow-brand-500/20"
             >
-              Share Files
+              My Workspace
             </Link>
           </div>
 
@@ -80,18 +84,20 @@ export default function Navbar() {
             <button
               onClick={toggleTheme}
               className="p-2 rounded-lg text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+              aria-label="Toggle Theme Mobile"
             >
               {theme === 'dark' ? <Sun className="h-5 w-5 text-yellow-500" /> : <Moon className="h-5 w-5" />}
             </button>
             <button
               onClick={() => setMobileOpen(!mobileOpen)}
               className="p-2 rounded-lg text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+              aria-label="Toggle Navigation Menu"
             >
               {mobileOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
             </button>
           </div>
         </div>
-      </div>
+      </nav>
 
       {mobileOpen && (
         <div className="md:hidden glass-panel border-b border-neutral-200/40 dark:border-neutral-800/40 px-4 pt-2 pb-4 space-y-2">
@@ -102,7 +108,7 @@ export default function Navbar() {
               onClick={() => setMobileOpen(false)}
               className={`block px-3 py-2 rounded-lg text-base font-medium transition-colors ${
                 isLinkActive(link.path)
-                  ? 'bg-brand-500/10 text-brand-500'
+                  ? 'bg-brand-500/10 text-brand-500 font-bold'
                   : 'text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800'
               }`}
             >
@@ -113,13 +119,13 @@ export default function Navbar() {
             <Link
               to="/dashboard"
               onClick={() => setMobileOpen(false)}
-              className="block w-full text-center px-4 py-2 text-base font-medium text-white bg-brand-500 rounded-lg hover:bg-brand-600"
+              className="block w-full text-center px-4 py-2 text-base font-semibold text-white bg-brand-500 rounded-xl hover:bg-brand-600"
             >
-              Share Files
+              My Workspace
             </Link>
           </div>
         </div>
       )}
-    </nav>
+    </header>
   );
 }
