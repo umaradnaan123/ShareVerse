@@ -74,7 +74,29 @@ router.get('/', async (req: Request, res: Response) => {
 
     query += ' ORDER BY created_at DESC';
     const files = await db.all(query, params);
-    res.json(files);
+    const enrichedFiles = files.map(file => ({
+      ...file,
+      previewUrl: `/api/shares/${file.id}/preview`,
+      downloadUrl: `/api/shares/${file.id}/download`
+    }));
+    res.json(enrichedFiles);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/:id/preview', async (req: Request, res: Response) => {
+  const { id } = req.params;
+
+  try {
+    const db = getDb();
+    const file = await db.get('SELECT * FROM files WHERE id = ?', id);
+    if (!file) {
+      return res.status(404).json({ error: 'File not found' });
+    }
+
+    const { streamFilePreview } = await import('./shares.js');
+    await streamFilePreview(req, res, file);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

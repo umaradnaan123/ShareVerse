@@ -41,6 +41,8 @@ interface FileDetails {
   download_limit: number | null;
   download_count: number;
   created_at: string;
+  previewUrl?: string;
+  downloadUrl?: string;
 }
 
 export default function ShareView() {
@@ -157,8 +159,8 @@ export default function ShareView() {
     }
   }, [file, isPasswordVerified]);
 
-  const downloadUrl = file ? `/api/shares/${file.id}/download${password ? `?password=${encodeURIComponent(password)}` : ''}` : '';
-  const previewUrl = downloadUrl ? `${downloadUrl}${downloadUrl.includes('?') ? '&' : '?'}inline=true` : '';
+  const downloadUrl = file ? `${file.downloadUrl || `/api/shares/${file.id}/download`}${password ? `?password=${encodeURIComponent(password)}` : ''}` : '';
+  const previewUrl = file ? `${file.previewUrl || `/api/shares/${file.id}/preview`}${password ? `?password=${encodeURIComponent(password)}` : ''}` : '';
   const sharePageUrl = window.location.href;
 
   const loadPreviewText = async (isCsv: boolean) => {

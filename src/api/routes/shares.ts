@@ -49,10 +49,118 @@ router.get('/:id', async (req: Request, res: Response) => {
     const hasPassword = !!file.password_hash;
     const { password_hash, ...publicMeta } = file;
 
+    const previewUrl = `/api/shares/${file.id}/preview`;
+    const downloadUrl = `/api/shares/${file.id}/download`;
+
     res.json({
       ...publicMeta,
-      hasPassword
+      hasPassword,
+      previewUrl,
+      downloadUrl
     });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Handles raw binary file preview streaming with Range Request support and preview headers.
+ */
+export async function streamFilePreview(req: Request, res: Response, file: any) {
+  console.log(`[PREVIEW] Streaming id=${file.id}, name=${file.name}, mime=${file.mime_type}, range=${req.headers.range || 'full'}`);
+
+  const etag = `"${file.id}-${file.size}"`;
+  const lastModified = file.created_at ? new Date(file.created_at).toUTCString() : new Date().toUTCString();
+
+  res.setHeader('Accept-Ranges', 'bytes');
+  res.setHeader('Cache-Control', 'public, max-age=3600');
+  res.setHeader('ETag', etag);
+  res.setHeader('Last-Modified', lastModified);
+  res.setHeader('Content-Type', file.mime_type || 'application/octet-stream');
+  res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(file.name)}"`);
+
+  // Handle Data URL Stream
+  if (file.path.startsWith('data:')) {
+    const commaIndex = file.path.indexOf(',');
+    const base64Data = file.path.substring(commaIndex + 1);
+    const buffer = Buffer.from(base64Data, 'base64');
+    res.setHeader('Content-Length', buffer.length);
+    return res.send(buffer);
+  }
+
+  // Handle Cloud HTTP Stream
+  if (file.path.startsWith('http://') || file.path.startsWith('https://')) {
+    const fetchOptions: any = {};
+    if (req.headers.range) {
+      fetchOptions.headers = { range: req.headers.range };
+    }
+    const response = await fetch(file.path, fetchOptions);
+    if (!response.ok) {
+      return res.status(404).json({ error: 'Physical preview file not found on cloud storage server.' });
+    }
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    res.setHeader('Content-Length', buffer.length);
+    return res.send(buffer);
+  }
+
+  // Handle Local Disk Stream with Range Support
+  const filePath = path.join(UPLOADS_DIR, file.path);
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({ error: 'Physical preview file not found on storage server.' });
+  }
+
+  const fileSize = file.size || fs.statSync(filePath).size;
+  const range = req.headers.range;
+
+  if (range) {
+    const parts = range.replace(/bytes=/, '').split('-');
+    const start = parseInt(parts[0], 10);
+    const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+    const chunksize = (end - start) + 1;
+
+    res.status(206);
+    res.setHeader('Content-Range', `bytes ${start}-${end}/${fileSize}`);
+    res.setHeader('Content-Length', chunksize);
+
+    const readStream = fs.createReadStream(filePath, { start, end });
+    readStream.pipe(res);
+    return;
+  }
+
+  res.setHeader('Content-Length', fileSize);
+  const readStream = fs.createReadStream(filePath);
+  readStream.pipe(res);
+}
+
+router.get('/:id/preview', async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { password } = req.query;
+
+  try {
+    const db = getDb();
+    let file = await db.get('SELECT * FROM files WHERE id = ? AND is_trashed = 0', id);
+
+    if (!file && id.startsWith('sv1_')) {
+      file = decodeShareToken(id);
+    }
+
+    if (!file) {
+      return res.status(404).json({ error: 'Preview asset not found.' });
+    }
+
+    if (file.expires_at && new Date(file.expires_at) < new Date()) {
+      return res.status(410).json({ error: 'Preview link has expired.' });
+    }
+
+    if (file.password_hash) {
+      const isMatch = await bcrypt.compare((password as string) || '', file.password_hash);
+      if (!isMatch) {
+        return res.status(401).json({ error: 'Password validation required for preview.' });
+      }
+    }
+
+    await streamFilePreview(req, res, file);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
